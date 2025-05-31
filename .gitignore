@@ -46,13 +46,6 @@ mike-*.yml
 # Ignore our local config override so we don’t leak absolute paths
 /config/local.yaml
 
-# Ignore data/raw except the sample JSONs:
-# (If you added sample files, allow them—otherwise just ignore everything)
- /data/raw/*
- !/data/raw/sample_alert.json
- !/data/raw/sample_trip_update.json
- !/data/raw/sample_vehicle_position.json
-
 # ─────────────────────────────────────────────────────────────
 # If you ever mount OneDrive under your user folder, don’t try to commit it:
 # (This is optional, but prevents mistakes)
