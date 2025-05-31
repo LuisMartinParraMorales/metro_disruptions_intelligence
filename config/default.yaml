@@ -1,0 +1,11 @@
+# config/default.yaml
+#
+# This file contains the “default” location of your raw GTFS JSON data.
+# We expect every collaborator to override this in config/local.yaml or
+# by setting the ENV var METRO_DATA_DIR before running any scripts.
+
+# If no one has set a local override, `data_dir` should point to a
+# relative `data/raw/` folder. Most users will not have that folder
+# unless they are testing. So we leave it as an empty string by default.
+
+data_dir: ""
