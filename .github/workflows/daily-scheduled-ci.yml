@@ -1,0 +1,35 @@
+name: Daily CI
+
+on:
+  schedule:
+    - cron: '23 14 * * 1-5'
+
+jobs:
+  get-date:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Add date to github output env
+        run: echo "DATE=$(date +'%Y-%m-%d')" >> $GITHUB_OUTPUT
+
+  test:
+    needs: get-date
+    uses: arup-group/actions-city-modelling-lab/.github/workflows/python-install-lint-test.yml@v1.1.0
+    with:
+      os: ubuntu-latest
+      py3version: "12"
+      notebook_kernel: metro_disruptions_intelligence
+      pytest_args: '--no-cov'  # ignore coverage
+      cache_env: false
+      lint: false
+      env_name: daily-ci
+
+  slack-notify-ci:
+    needs: test
+    if: always()
+    uses: arup-group/actions-city-modelling-lab/.github/workflows/slack-notify.yml@v1.1.0
+    secrets:
+      SLACK_WEBHOOK: ${{ secrets.SLACK_WEBHOOK }}
+    with:
+      result: ${{ needs.test.result }}
+      channel: metro_disruptions_intelligence-feed
+      message: Daily CI action

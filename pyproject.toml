@@ -1,0 +1,150 @@
+
+
+[tool.pytest.ini_options]
+minversion = "6.0"
+# opts:
+# `--strict-markers` - Raise error on unexpected pytest markers being used (add new markers to `markers` config)
+# `-nauto` - parallelise over as many threads are available (uses pytest-xdist). This auto-selects 1 thread when using the `--pdb` debugging flag.
+# `--nbmake --nbmake-kernel=metro_disruptions_intelligence` - test example notebooks using the "metro_disruptions_intelligence" notebook kernel (uses nbmake)
+# `--cov --cov-report=xml --cov-config=pyproject.toml` - generate coverage report for tests (uses pytest-cov; call `--no-cov` in CLI to switch off; `--cov-config` include to avoid bug)
+# `-m 'not high_mem'` - Do not run tests marked as consuming large amounts of memory (call `-m "high_mem"` in CLI to invert this; only `high_mem` marked tests will be run)
+# `-p no:memray` - Do not use the memray memory profiling plugin (call `-p memray` in CLI to switch on memory profiling)
+addopts = "-rav --strict-markers -nauto --nbmake --nbmake-kernel=metro_disruptions_intelligence --cov --cov-report=xml --cov-config=pyproject.toml -m 'not high_mem' -p no:memray"
+testpaths = ["tests", "examples"]
+
+# to mark a test, decorate it with `@pytest.mark.[marker-name]`
+markers = ["high_mem", "limit_memory"]
+filterwarnings = [
+    # https://github.com/pytest-dev/pytest-xdist/issues/825
+    "ignore:The --rsyncdir command line argument and rsyncdirs config variable are deprecated.:DeprecationWarning",
+]
+
+[tool.coverage.run]
+branch = true
+source = ["src/"]
+
+[tool.coverage.report]
+fail_under = 89
+
+[tool.coverage.html]
+directory = "reports/coverage"
+
+[tool.coverage.xml]
+output = "reports/coverage/coverage.xml"
+
+[tool.ruff]
+line-length = 100
+preview = true # required to activate many pycodestyle errors and warnings as of 2024-03-13
+
+[tool.ruff.format]
+exclude = [".*.egg-info", "requirements/**"]
+skip-magic-trailing-comma = true
+quote-style = "double"
+indent-style = "space"
+line-ending = "auto"
+
+[tool.ruff.lint]
+select = [
+    # pycodestyle errors
+    "E",
+    # pycodestyle warnings
+    "W",
+    # Pyflakes
+    "F",
+    # pyupgrade
+    "UP",
+    # flake8-bugbear
+    "B",
+    # flake8-simplify
+    "SIM",
+    # isort
+    "I",
+    # Docstrings
+    "D"
+]
+ignore = [
+    # here and below, rules are redundant with formatter, see
+    # https://docs.astral.sh/ruff/formatter/#conflicting-lint-rules
+    "E501",
+    "W191",
+    "E111",
+    "E114",
+    "E117",
+    "D206",
+    "D300"
+]
+
+[tool.ruff.lint.isort]
+split-on-trailing-comma = false
+
+[tool.ruff.lint.mccabe]
+# Unlike Flake8, default to a complexity level of 10.
+max-complexity = 10
+
+# Ignore `E402` (import violations) and `F401` (unused imports) in all `__init__.py` files
+[tool.ruff.lint.per-file-ignores]
+"__init__.py" = ["E402", "F401"]
+"*.ipynb" = ["E402"]
+"tests/*" = ["D"]
+
+[tool.ruff.lint.pydocstyle]
+convention = "google"
+
+[tool.ruff.lint.pycodestyle]
+max-doc-length = 200
+ignore-overlong-task-comments = true
+
+[tool.codespell]
+skip = "tests/*.py,AUTHORS.md"
+count = ""
+quiet-level = 3
+# Uncomment and add words that are false flags as a comma delimited string
+# ignore-words-list = ""
+
+[tool.setuptools.packages.find]
+include = ["metro_disruptions_intelligence*"]
+where = ["src"]
+
+[tool.setuptools.package-data]
+# Add file globs from the source code directory if they include non-py files that should be packaged
+# E.g. "fixtures/**/*"
+# "py.typed" is added by default. It allows `mypy` to register the package as having type hints.
+metro_disruptions_intelligence = ["py.typed"]
+
+
+[build-system]
+requires = ["setuptools"]
+build-backend = "setuptools.build_meta"
+
+[project]
+classifiers = [
+        "Development Status :: 2 - Pre-Alpha",
+        "Intended Audience :: Developers",
+        "Natural Language :: English",
+        "Programming Language :: Python :: 3",
+    ]
+
+name = "metro_disruptions_intelligence"
+authors = [
+    { name = "Luis Parra", email = "luis.parramorales@arup.com" },
+]
+maintainers = []
+description = "Repository with machine learning models for analyzing and predicting disruptions and their characteristics"
+readme = "README.md"
+requires-python = ">=3.8"
+keywords = ["metro_disruptions_intelligence", "arup"]
+dynamic = ["dependencies", "optional-dependencies", "version"]
+
+[tool.setuptools.dynamic]
+dependencies = { file = ["requirements/base.txt"] }
+version = { attr = "metro_disruptions_intelligence.__version__" }
+[project.scripts]
+metro_disruptions_intelligence="metro_disruptions_intelligence.cli:cli"
+
+[tool.setuptools.dynamic.optional-dependencies]
+dev = { file = ["requirements/dev.txt"] }
+
+[project.urls]
+repository = "https://github.com/LuisMartinParraMorales/metro_disruptions_intelligence"
+documentation = "https://LuisMartinParraMorales.github.io/metro_disruptions_intelligence"
+changelog = "https://github.com/LuisMartinParraMorales/metro_disruptions_intelligence/blob/main/CHANGELOG.md"
