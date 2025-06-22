@@ -44,11 +44,19 @@ def parse_one_alert_file(json_path: Path) -> pd.DataFrame:
                     agency_id=ie.get("agency_id"),
                     route_id=ie.get("route_id"),
                     direction_id=ie.get("direction_id"),
-                    cause=alert.get("cause"),
-                    effect=alert.get("effect"),
-                    header_text=" ".join(t.get("text", "") for t in alert.get("header_text", {}).get("translation", [])),
-                    description_text=" ".join(t.get("text", "") for t in alert.get("description_text", {}).get("translation", [])),
-                    url=next((u.get("text") for u in alert.get("url", {}).get("translation", [])), None),
+                    cause=str(alert["cause"]) if alert.get("cause") is not None else None,
+                    effect=str(alert["effect"]) if alert.get("effect") is not None else None,
+                    header_text=" ".join(
+                        t.get("text", "")
+                        for t in alert.get("header_text", {}).get("translation", [])
+                    ),
+                    description_text=" ".join(
+                        t.get("text", "")
+                        for t in alert.get("description_text", {}).get("translation", [])
+                    ),
+                    url=next(
+                        (u.get("text") for u in alert.get("url", {}).get("translation", [])), None
+                    ),
                 )
                 rows.append(row.dict())
     return pd.DataFrame(rows)
