@@ -50,3 +50,6 @@ mike-*.yml
 # If you ever mount OneDrive under your user folder, don’t try to commit it:
 # (This is optional, but prevents mistakes)
 */OneDrive - Imperial College London/Dissertation-LDNLT5CG2147KJJ/Data/**
+
+# Ignore the GTFS data saved in the data folder
+/data

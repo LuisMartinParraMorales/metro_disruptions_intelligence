@@ -1,0 +1,2 @@
+"route_id","agency_id","route_short_name","route_long_name","route_desc","route_type","route_color","route_text_color"
+"SMNW_M","SMNW","M","Metro North West Line","Sydney Metro Network","401","168388","FFFFFF"
