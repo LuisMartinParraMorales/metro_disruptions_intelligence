@@ -23,7 +23,7 @@ def _load_config() -> dict:
         return {"data_dir": env_path}
 
     # 2) Attempt to load local override
-    local_cfg_path = Path(__file__).resolve().parents[3] / "config" / "local.yaml"
+    local_cfg_path = Path(__file__).resolve().parents[2] / "config" / "local.yaml"
     if local_cfg_path.exists():
         with open(local_cfg_path, encoding="utf-8") as f:
             local_cfg = yaml.safe_load(f)
@@ -31,7 +31,7 @@ def _load_config() -> dict:
             return local_cfg
 
     # 3) Fallback to default.yaml
-    default_cfg_path = Path(__file__).resolve().parents[3] / "config" / "default.yaml"
+    default_cfg_path = Path(__file__).resolve().parents[2] / "config" / "default.yaml"
     if default_cfg_path.exists():
         with open(default_cfg_path, encoding="utf-8") as f:
             default_cfg = yaml.safe_load(f)
