@@ -49,10 +49,10 @@ def parse_one_vehicle_position_file(json_path: Path) -> pd.DataFrame:
             bearing=pos.get("bearing"),
             speed=pos.get("speed"),
             current_stop_sequence=veh.get("current_stop_sequence"),
-            current_status=veh.get("current_status"),
+            current_status=str(veh["current_status"]) if veh.get("current_status") is not None else None,
             stop_id=veh.get("stop_id"),
-            congestion_level=veh.get("congestion_level"),
-            occupancy_status=veh.get("occupancy_status"),
+            congestion_level=str(veh["congestion_level"]) if veh.get("congestion_level") is not None else None,
+            occupancy_status=str(veh["occupancy_status"]) if veh.get("occupancy_status") is not None else None,
         )
         rows.append(row.dict())
     return pd.DataFrame(rows)
