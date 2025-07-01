@@ -6,3 +6,5 @@ pyarrow
 duckdb
 pydantic
 numpy
+requests
+tqdm
