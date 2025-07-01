@@ -1,6 +1,7 @@
 from pathlib import Path
 
 import pandas as pd
+import pytest
 
 from metro_disruptions_intelligence.etl.ingest_rt import _parse_args as parse_ingest_args
 from metro_disruptions_intelligence.etl.replay_stream import _parse_args as parse_replay_args
@@ -22,12 +23,12 @@ def test_ingest_rt_parse_args(tmp_path):
 
 def test_static_ingest_parse_args(tmp_path):
     cfg = parse_static_args([
-        "sample_data/static",
+        "data/static",
         "--output-dir",
         str(tmp_path),
         "--persist-duckdb",
     ])
-    assert cfg.gtfs_dir == Path("sample_data/static")
+    assert cfg.gtfs_dir == Path("data/static")
     assert cfg.output_dir == tmp_path
     assert cfg.persist_duckdb is True
 
@@ -78,8 +79,10 @@ def test_ingest_rt_main(tmp_path):
 
 def test_static_ingest_main(tmp_path):
     from metro_disruptions_intelligence.etl.static_ingest import main
-
-    main(["sample_data/static", "--output-dir", str(tmp_path)])
+    gtfs_path = Path("data/static")
+    if not gtfs_path.exists():
+        pytest.skip("Static GTFS data not available")
+    main(["data/static", "--output-dir", str(tmp_path)])
     assert (tmp_path / "station_schedule.parquet").exists()
 
 

@@ -39,23 +39,40 @@ def ingest_static_gtfs(gtfs_dir: Path, output_dir: Path, persist_duckdb: bool = 
     stop_times_csv = gtfs_dir / "stop_times.txt"
     trips_csv = gtfs_dir / "trips.txt"
 
+    # First read the entire CSV so the stop_id column is interpreted as VARCHAR
+    # even when the sample contains only numeric values. SAMPLE_SIZE=-1 forces
+    # DuckDB to scan the whole file.
     con.execute(
         f"""
+        CREATE TABLE stop_times_raw AS
+            SELECT *
+            FROM read_csv_auto(
+                '{stop_times_csv}',
+                delim=',',
+                HEADER=TRUE,
+                SAMPLE_SIZE=-1
+            );
+        """
+    )
+
+    # Transform the raw table to add numeric arrival/departure seconds.
+    con.execute(
+        """
         CREATE TABLE stop_times AS
-        SELECT
-            trip_id,
-            stop_id,
-            arrival_time,
-            departure_time,
-            stop_sequence,
-            CAST(split_part(arrival_time, ':', 1) AS INT) * 3600 +
-            CAST(split_part(arrival_time, ':', 2) AS INT) * 60 +
-            CAST(split_part(arrival_time, ':', 3) AS INT) AS sched_arr,
-            CAST(split_part(departure_time, ':', 1) AS INT) * 3600 +
-            CAST(split_part(departure_time, ':', 2) AS INT) * 60 +
-            CAST(split_part(departure_time, ':', 3) AS INT) AS sched_dep
-        FROM read_csv_auto('{stop_times_csv}', delim=',', HEADER=TRUE);
-    """
+            SELECT
+                trip_id,
+                stop_id,
+                arrival_time,
+                departure_time,
+                stop_sequence,
+                CAST(split_part(arrival_time, ':', 1) AS INT) * 3600 +
+                CAST(split_part(arrival_time, ':', 2) AS INT) * 60 +
+                CAST(split_part(arrival_time, ':', 3) AS INT) AS sched_arr,
+                CAST(split_part(departure_time, ':', 1) AS INT) * 3600 +
+                CAST(split_part(departure_time, ':', 2) AS INT) * 60 +
+                CAST(split_part(departure_time, ':', 3) AS INT) AS sched_dep
+            FROM stop_times_raw;
+        """
     )
     con.execute(
         f"""
