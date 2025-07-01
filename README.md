@@ -49,6 +49,18 @@ pip install --no-deps -e .
 
 For more detailed instructions, see our [documentation](https://LuisMartinParraMorales.github.io/metro_disruptions_intelligence/latest/installation/).
 
+## Configuration
+
+The data loader searches for your raw GTFS JSON files in the following order:
+
+1. the ``METRO_DATA_DIR`` environment variable
+2. ``config/local.yaml``
+3. ``config/default.yaml``
+
+If no valid path is found, an error is raised. Set ``METRO_DATA_DIR`` to the
+directory containing the ``RAIL_RT_*`` folders or edit ``config/local.yaml`` to
+point at that location.
+
 ## Contributing
 
 There are many ways to contribute to metro_disruptions_intelligence.
