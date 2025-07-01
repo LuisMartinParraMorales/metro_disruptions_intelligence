@@ -1,9 +1,9 @@
-"""Tests for `metro_disruptions_intelligence` package."""
+"""Tests for the :mod:`metro_disruptions_intelligence.core` module."""
 
 from metro_disruptions_intelligence import core
 
 
-def test_content(response):
-    """Sample pytest test function with the pytest fixture as an argument."""
-    print(core.__file__)
-    # assert 'GitHub' in BeautifulSoup(response.content).title.string
+def test_greet() -> None:
+    """Ensure that :func:`core.greet` returns the expected greeting."""
+
+    assert core.greet("Tester") == "Hello, Tester!"
