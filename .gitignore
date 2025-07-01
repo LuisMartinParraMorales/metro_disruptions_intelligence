@@ -53,3 +53,6 @@ mike-*.yml
 
 # Ignore the GTFS data saved in the data folder
 /data
+
+# Ignore the GTFS data saved in the sample_data folder
+/sample_data
