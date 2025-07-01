@@ -2,7 +2,7 @@
 <!--- --8<-- [start:docs] -->
 ![metro_disruptions_intelligence](resources/logos/title.png)
 
-# Metro Dsiruptions Intelligence (metro_disruptions_intelligence)
+# Metro Disruptions Intelligence (metro_disruptions_intelligence)
 
 <!--- --8<-- [end:docs] -->
 
