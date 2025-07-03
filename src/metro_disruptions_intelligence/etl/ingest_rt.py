@@ -5,6 +5,7 @@ from __future__ import annotations
 import argparse
 import logging
 import re
+from datetime import datetime
 from pathlib import Path
 
 import pandas as pd
@@ -22,9 +23,30 @@ class IngestRTConfig(BaseModel):
     raw_root: Path
     processed_root: Path
     union: bool = False
+    start_time: datetime | None = None
+    end_time: datetime | None = None
 
 
 FEEDS = ["alerts", "trip_updates", "vehicle_positions"]
+
+
+def _file_datetime(path: Path) -> datetime | None:
+    """Return the timestamp encoded in ``path`` or ``None`` if not parseable."""
+    m = FILENAME_RE.match(path.name)
+    if not m:
+        return None
+    yyyy, mm, dd, hh, mi, ss = map(int, m.groups())
+    return datetime(yyyy, mm, dd, hh, mi, ss)
+
+
+def _parse_cli_time(value: str) -> datetime:
+    """Parse a command line datetime string."""
+    for fmt in ("%Y_%m_%d_%H_%M_%S", "%Y-%m-%dT%H:%M:%S", "%Y-%m-%d"):
+        try:
+            return datetime.strptime(value, fmt)
+        except ValueError:
+            continue
+    raise argparse.ArgumentTypeError(f"Invalid datetime format: {value}")
 
 
 def _prefix_from_name(path: Path) -> str:
@@ -35,8 +57,23 @@ def _prefix_from_name(path: Path) -> str:
     return f"{yyyy}-{mm}-{dd}-{hh}-{mi}"
 
 
-def ingest_all_rt(raw_root: Path, processed_root: Path) -> None:
-    """Parse all realtime JSON files under ``raw_root``."""
+def ingest_all_rt(
+    raw_root: Path,
+    processed_root: Path,
+    start_time: datetime | None = None,
+    end_time: datetime | None = None,
+) -> None:
+    """Parse realtime JSON files under ``raw_root``.
+
+    Parameters
+    ----------
+    raw_root:
+        Directory containing realtime JSON files organised by feed.
+    processed_root:
+        Destination directory for partitioned Parquet files.
+    start_time, end_time:
+        Optional datetime range to filter the files processed.
+    """
     for feed in FEEDS:
         raw_dir = raw_root / feed
         if raw_dir.exists():
@@ -51,6 +88,19 @@ def ingest_all_rt(raw_root: Path, processed_root: Path) -> None:
                     files = sorted(raw_root.glob("*trip_update*.json"))
                 elif feed == "vehicle_positions":
                     files = sorted(raw_root.glob("*vehicle*position*.json"))
+
+        if start_time or end_time:
+            filtered = []
+            for jf in files:
+                ts = _file_datetime(jf)
+                if ts is None:
+                    continue
+                if start_time and ts < start_time:
+                    continue
+                if end_time and ts > end_time:
+                    continue
+                filtered.append(jf)
+            files = filtered
 
         out_dir = processed_root / feed
         out_dir.mkdir(parents=True, exist_ok=True)
@@ -84,7 +134,9 @@ def union_all_feeds(processed_root: Path, output_parquet: Path) -> Path:
 
 def _parse_args(argv: list[str] | None = None) -> IngestRTConfig:
     parser = argparse.ArgumentParser(description="Ingest realtime GTFS feeds")
-    parser.add_argument("raw_root", type=Path, help="Directory with raw JSON subfolders")
+    parser.add_argument(
+        "raw_root", type=Path, help="Directory with raw JSON subfolders"
+    )
     parser.add_argument(
         "--processed-root",
         type=Path,
@@ -96,13 +148,35 @@ def _parse_args(argv: list[str] | None = None) -> IngestRTConfig:
         action="store_true",
         help="Also create a combined station_event.parquet file",
     )
+    parser.add_argument(
+        "--start-time",
+        type=str,
+        default=None,
+        help="Only ingest files with timestamp >= START_TIME (YYYY-MM-DD or YYYY_MM_DD_HH_MM_SS)",
+    )
+    parser.add_argument(
+        "--end-time",
+        type=str,
+        default=None,
+        help="Only ingest files with timestamp <= END_TIME",
+    )
     args = parser.parse_args(argv)
-    return IngestRTConfig(**vars(args))
+    cfg_dict = vars(args)
+    if cfg_dict["start_time"]:
+        cfg_dict["start_time"] = _parse_cli_time(cfg_dict["start_time"])
+    if cfg_dict["end_time"]:
+        cfg_dict["end_time"] = _parse_cli_time(cfg_dict["end_time"])
+    return IngestRTConfig(**cfg_dict)
 
 
 def main(argv: list[str] | None = None) -> None:
     cfg = _parse_args(argv)
-    ingest_all_rt(cfg.raw_root, cfg.processed_root)
+    ingest_all_rt(
+        cfg.raw_root,
+        cfg.processed_root,
+        start_time=cfg.start_time,
+        end_time=cfg.end_time,
+    )
     if cfg.union:
         output_parquet = cfg.processed_root.parent / "station_event.parquet"
         union_all_feeds(cfg.processed_root, output_parquet)
@@ -111,4 +185,3 @@ def main(argv: list[str] | None = None) -> None:
 if __name__ == "__main__":
     logging.basicConfig(level=logging.INFO, format="%(levelname)s:%(message)s")
     main()
-

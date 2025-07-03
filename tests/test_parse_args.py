@@ -3,31 +3,50 @@ from pathlib import Path
 import pandas as pd
 import pytest
 
-from metro_disruptions_intelligence.etl.ingest_rt import _parse_args as parse_ingest_args
-from metro_disruptions_intelligence.etl.replay_stream import _parse_args as parse_replay_args
-from metro_disruptions_intelligence.etl.static_ingest import _parse_args as parse_static_args
-from metro_disruptions_intelligence.etl.write_parquet import write_df_to_partitioned_parquet
+from metro_disruptions_intelligence.etl.ingest_rt import (
+    _parse_args as parse_ingest_args,
+    _parse_cli_time,
+)
+from metro_disruptions_intelligence.etl.replay_stream import (
+    _parse_args as parse_replay_args,
+)
+from metro_disruptions_intelligence.etl.static_ingest import (
+    _parse_args as parse_static_args,
+)
+from metro_disruptions_intelligence.etl.write_parquet import (
+    write_df_to_partitioned_parquet,
+)
 
 
 def test_ingest_rt_parse_args(tmp_path):
-    cfg = parse_ingest_args([
-        str(Path("sample_data/rt")),
-        "--processed-root",
-        str(tmp_path),
-        "--union",
-    ])
+    cfg = parse_ingest_args(
+        [
+            str(Path("sample_data/rt")),
+            "--processed-root",
+            str(tmp_path),
+            "--union",
+            "--start-time",
+            "2025-01-01",
+            "--end-time",
+            "2025-01-02",
+        ]
+    )
     assert cfg.raw_root == Path("sample_data/rt")
     assert cfg.processed_root == tmp_path
     assert cfg.union is True
+    assert cfg.start_time == _parse_cli_time("2025-01-01")
+    assert cfg.end_time == _parse_cli_time("2025-01-02")
 
 
 def test_static_ingest_parse_args(tmp_path):
-    cfg = parse_static_args([
-        "data/static",
-        "--output-dir",
-        str(tmp_path),
-        "--persist-duckdb",
-    ])
+    cfg = parse_static_args(
+        [
+            "data/static",
+            "--output-dir",
+            str(tmp_path),
+            "--persist-duckdb",
+        ]
+    )
     assert cfg.gtfs_dir == Path("data/static")
     assert cfg.output_dir == tmp_path
     assert cfg.persist_duckdb is True
@@ -35,7 +54,9 @@ def test_static_ingest_parse_args(tmp_path):
 
 def test_replay_stream_parse_args(tmp_path):
     dummy = tmp_path / "dummy.parquet"
-    cfg = parse_replay_args([str(dummy), "--batch-size", "10", "--start-ts", "1", "--end-ts", "2"])
+    cfg = parse_replay_args(
+        [str(dummy), "--batch-size", "10", "--start-ts", "1", "--end-ts", "2"]
+    )
     assert cfg.path == dummy
     assert cfg.batch_size == 10
     assert cfg.start_ts == 1
@@ -79,6 +100,7 @@ def test_ingest_rt_main(tmp_path):
 
 def test_static_ingest_main(tmp_path):
     from metro_disruptions_intelligence.etl.static_ingest import main
+
     gtfs_path = Path("data/static")
     if not gtfs_path.exists():
         pytest.skip("Static GTFS data not available")
@@ -87,7 +109,10 @@ def test_static_ingest_main(tmp_path):
 
 
 def test_replay_stream_main(tmp_path, capsys):
-    from metro_disruptions_intelligence.etl.ingest_rt import ingest_all_rt, union_all_feeds
+    from metro_disruptions_intelligence.etl.ingest_rt import (
+        ingest_all_rt,
+        union_all_feeds,
+    )
     from metro_disruptions_intelligence.etl.replay_stream import main as replay_main
 
     ingest_all_rt(Path("sample_data/rt"), tmp_path)
