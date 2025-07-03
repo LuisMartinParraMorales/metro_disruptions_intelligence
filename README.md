@@ -61,6 +61,21 @@ If no valid path is found, an error is raised. Set ``METRO_DATA_DIR`` to the
 directory containing the ``RAIL_RT_*`` folders or edit ``config/local.yaml`` to
 point at that location.
 
+## Processing realtime data
+
+To convert raw GTFS-Realtime snapshots into partitioned Parquet files use the
+``ingest_all_rt`` helper.  The easiest way is to open the notebook
+``notebooks/01_process_all_rt.ipynb`` and run the cells.  This will read all
+JSON files under ``data/raw`` and overwrite any existing output under
+``data/processed/rt``.
+
+Alternatively, the same process can be executed from the command line:
+
+```bash
+python -m metro_disruptions_intelligence.etl.ingest_rt data/raw --processed-root data/processed/rt
+```
+
+
 ## Contributing
 
 There are many ways to contribute to metro_disruptions_intelligence.
