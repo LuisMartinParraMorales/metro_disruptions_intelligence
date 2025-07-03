@@ -4,7 +4,7 @@ from pathlib import Path
 
 import click
 
-from .etl.ingest_rt import ingest_all_rt, union_all_feeds
+from .etl.ingest_rt import ingest_all_rt, union_all_feeds, _parse_cli_time
 from .etl.static_ingest import ingest_static_gtfs
 
 
@@ -24,7 +24,9 @@ def cli() -> None:
     show_default=True,
     help="Directory to store processed Parquet and optional DuckDB",
 )
-@click.option("--persist-duckdb", is_flag=True, help="Persist the intermediate DuckDB DB")
+@click.option(
+    "--persist-duckdb", is_flag=True, help="Persist the intermediate DuckDB DB"
+)
 def ingest_static_cmd(gtfs_dir: Path, output_dir: Path, persist_duckdb: bool) -> None:
     """Ingest static GTFS files into Parquet tables."""
     ingest_static_gtfs(gtfs_dir, output_dir, persist_duckdb)
@@ -39,10 +41,29 @@ def ingest_static_cmd(gtfs_dir: Path, output_dir: Path, persist_duckdb: bool) ->
     show_default=True,
     help="Destination directory for partitioned Parquet",
 )
-@click.option("--union", is_flag=True, help="Create combined station_event.parquet file")
-def ingest_rt_cmd(raw_root: Path, processed_root: Path, union: bool) -> None:
+@click.option(
+    "--union", is_flag=True, help="Create combined station_event.parquet file"
+)
+@click.option(
+    "--start-time", type=str, default=None, help="Process files starting from this time"
+)
+@click.option(
+    "--end-time", type=str, default=None, help="Process files up to this time"
+)
+def ingest_rt_cmd(
+    raw_root: Path,
+    processed_root: Path,
+    union: bool,
+    start_time: str | None,
+    end_time: str | None,
+) -> None:
     """Ingest realtime JSON feeds into Parquet tables."""
-    ingest_all_rt(raw_root, processed_root)
+    ingest_all_rt(
+        raw_root,
+        processed_root,
+        start_time=_parse_cli_time(start_time) if start_time else None,
+        end_time=_parse_cli_time(end_time) if end_time else None,
+    )
     if union:
         output_parquet = processed_root.parent / "station_event.parquet"
         union_all_feeds(processed_root, output_parquet)
