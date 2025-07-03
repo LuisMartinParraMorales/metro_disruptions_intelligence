@@ -40,6 +40,8 @@ ipython kernel install --user --name=metro_disruptions_intelligence
 jupyter notebook
 ```
 
+For details on processing GTFS-Realtime data see [Realtime ingestion](realtime_ingestion.md).
+
 ### Choosing a different environment name
 
 If you would like to use a different name to `metro_disruptions_intelligence` for your conda environment, the installation becomes (where `[my-env-name]` is your preferred name for the environment):
