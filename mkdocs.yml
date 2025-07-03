@@ -2,6 +2,7 @@ site_name: Metro Disruptions Intelligence
 nav:
   - Home: index.md
   - Installation: installation.md
+  - Realtime ingestion: realtime_ingestion.md
   - Examples: [] # this will be filled in automatically to include reference to all the notebooks
   - Contributing: contributing.md
   - Changelog: CHANGELOG.md
