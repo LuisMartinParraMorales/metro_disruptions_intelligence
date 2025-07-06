@@ -14,3 +14,8 @@ def test_load_rt_dataset(tmp_path: Path) -> None:
     assert isinstance(df, pd.DataFrame)
     assert not df.empty
     assert set(df["feed_type"].unique()) == {"alerts", "trip_updates", "vehicle_positions"}
+
+    output_parquet = processed_root / "all.parquet"
+    df_written = load_rt_dataset(processed_root, output_file=output_parquet)
+    assert output_parquet.exists()
+    pd.testing.assert_frame_equal(df_written, pd.read_parquet(output_parquet))

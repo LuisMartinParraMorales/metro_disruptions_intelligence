@@ -92,7 +92,10 @@ from pathlib import Path
 from metro_disruptions_intelligence.processed_reader import load_rt_dataset
 
 processed_rt = Path("data/processed/rt")
-df = load_rt_dataset(processed_rt)
+df = load_rt_dataset(
+    processed_rt,
+    output_file=processed_rt / "all_feeds.parquet",
+)
 ```
 
 This returns a DataFrame containing all rows across the three feeds with an
