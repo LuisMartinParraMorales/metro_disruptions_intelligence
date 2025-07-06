@@ -75,6 +75,28 @@ Alternatively, the same process can be executed from the command line:
 python -m metro_disruptions_intelligence.etl.ingest_rt data/raw --processed-root data/processed/rt
 ```
 
+Once ingested, the realtime feeds are stored as Parquet files partitioned by
+``year``/``month``/``day`` under ``data/processed/rt``.  Each feed type
+(``alerts``, ``trip_updates`` and ``vehicle_positions``) has its own folder with
+the same partition structure:
+
+```text
+data/processed/rt/alerts/year=2025/month=03/day=06/alerts_2025-06-03-16-49.parquet
+```
+
+To load all partitions for analysis, use the helper
+``load_rt_dataset``:
+
+```python
+from pathlib import Path
+from metro_disruptions_intelligence.processed_reader import load_rt_dataset
+
+processed_rt = Path("data/processed/rt")
+df = load_rt_dataset(processed_rt)
+```
+
+This returns a DataFrame containing all rows across the three feeds with an
+additional ``feed_type`` column indicating the source feed.
 
 ## Contributing
 
