@@ -3,11 +3,28 @@
 from __future__ import annotations
 
 from datetime import datetime
+from types import SimpleNamespace
 
 import pandas as pd
 import pytz
 
 _TZ_SYDNEY = pytz.timezone("Australia/Sydney")
+
+# Constants shared between features and tests
+DELAY_CAP = 300
+LAG_TU_SECS = 60
+LAG_VP_SECS = 30
+MAX_FUTURE_SECS = 2 * 60 * 60
+MAX_HEADWAY_SECS = 60 * 60
+
+# Exported container of constants
+CONSTANTS = SimpleNamespace(
+    DELAY_CAP=DELAY_CAP,
+    LAG_TU_SECS=LAG_TU_SECS,
+    LAG_VP_SECS=LAG_VP_SECS,
+    MAX_FUTURE_SECS=MAX_FUTURE_SECS,
+    MAX_HEADWAY_SECS=MAX_HEADWAY_SECS,
+)
 
 
 def sydney_time(ts: int) -> datetime:
