@@ -2,14 +2,15 @@
 
 from __future__ import annotations
 
+import logging
 from collections import defaultdict, deque
-from datetime import datetime
 
 import numpy as np
 import pandas as pd
-import pytz
 
-from .utils_gtfsrt import is_new_service_day
+from .utils_gtfsrt import CONSTANTS, is_new_service_day, sydney_time
+
+logger = logging.getLogger(__name__)
 
 
 class RollingState:
@@ -22,6 +23,7 @@ class RollingState:
         self.last_arr_delay: float = 0.0
         self.last_dep_delay: float = 0.0
         self.last_actual_depart: float | None = None
+        self.last_trip_id: str | None = None
         self.rolling_delay_5: deque[float] = deque(maxlen=5)
         self.rolling_delay_15: deque[float] = deque(maxlen=15)
         self.rolling_headway_60: deque[float] = deque(maxlen=60)
@@ -31,17 +33,22 @@ class RollingState:
 class SnapshotFeatureBuilder:
     """Builder for per-minute snapshot features."""
 
-    MAX_FUTURE_SECS = 2 * 60 * 60
-    MAX_HEADWAY_SECS = 60 * 60
+    MAX_FUTURE_SECS = CONSTANTS.MAX_FUTURE_SECS
+    MAX_HEADWAY_SECS = CONSTANTS.MAX_HEADWAY_SECS
     RESET_AT_HOUR = 3
-    LAG_TU_SECS = 60
-    LAG_VP_SECS = 30
+    LAG_TU_SECS = CONSTANTS.LAG_TU_SECS
+    LAG_VP_SECS = CONSTANTS.LAG_VP_SECS
     MAX_DATA_FRESH_SECS = 24 * 3600
+    DELAY_CAP = CONSTANTS.DELAY_CAP
 
-    def __init__(self, route_dir_to_stops: dict[tuple[str, int], list[str]]) -> None:
+    def __init__(
+        self, route_dir_to_stops: dict[tuple[str, int], list[str]], *, log_every: int | None = 60
+    ) -> None:
         """Create the builder from a mapping of route and direction to stop lists."""
         self.route_dir_to_stops = route_dir_to_stops
-        self.state: dict[tuple[str, int], RollingState] = defaultdict(RollingState)
+        self._state: dict[tuple[str, int], RollingState] = defaultdict(RollingState)
+        self._multi_routes = False
+        self._log_every = log_every
         self._build_graph()
 
     def _build_graph(self) -> None:
@@ -58,24 +65,49 @@ class SnapshotFeatureBuilder:
         p90 = np.percentile(degrees, 90) if degrees else 0
         self.hub_flag = {s: int(self.node_degree.get(s, 0) >= p90) for s in self.node_degree}
 
-    @staticmethod
-    def _sydney_time(ts: int) -> datetime:
-        tz = pytz.timezone("Australia/Sydney")
-        return datetime.fromtimestamp(ts, tz)
-
     def _time_features(self, ts: int) -> tuple[float, float, int]:
         """Return cyclic time-of-day features and day type."""
-        t = self._sydney_time(ts)
+        t = sydney_time(ts)
         angle = 2 * np.pi * t.hour / 24
         sin_hour = np.sin(angle)
         cos_hour = np.cos(angle)
         day_type = int(t.weekday() >= 5)
         return sin_hour, cos_hour, day_type
 
+    def _empty_feature_row(self, row: pd.Series, key: tuple[str, int]) -> dict:
+        """Return a gap feature row filled with NaNs."""
+        return {
+            "stop_id": key[0],
+            "direction_id": key[1],
+            **({"route_id": row.get("route_id")} if self._multi_routes else {}),
+            "arrival_delay_t": np.nan,
+            "departure_delay_t": np.nan,
+            "headway_t": np.nan,
+            "rel_headway_t": np.nan,
+            "dwell_delta_t": np.nan,
+            "delay_arrival_grad_t": np.nan,
+            "delay_departure_grad_t": np.nan,
+            "upstream_delay_mean_2": np.nan,
+            "downstream_delay_max_2": np.nan,
+            "delay_mean_5": np.nan,
+            "delay_std_5": np.nan,
+            "delay_mean_15": np.nan,
+            "headway_p90_60": np.nan,
+            "sin_hour": row["sin_hour"],
+            "cos_hour": row["cos_hour"],
+            "day_type": row["day_type"],
+            "node_degree": self.node_degree.get(key[0], 0),
+            "hub_flag": self.hub_flag.get(key[0], 0),
+            "is_train_present": 0,
+            "data_fresh_secs": np.nan,
+            "local_dt": row["local_dt"],
+        }
+
     def build_snapshot_features(
         self, trip_updates: pd.DataFrame, vehicles: pd.DataFrame, ts: int
     ) -> pd.DataFrame:
         """Create a feature frame for one snapshot."""
+        local_dt = sydney_time(ts)
         sin_hour, cos_hour, day_type = self._time_features(ts)
 
         if trip_updates.empty:
@@ -93,10 +125,44 @@ class SnapshotFeatureBuilder:
         tu_future = tu_now[mask].copy()
 
         if tu_future.empty:
-            return pd.DataFrame()
+            empty_rows = [
+                self._empty_feature_row(
+                    pd.Series({
+                        "snapshot_timestamp": ts,
+                        "route_id": None,
+                        "sin_hour": sin_hour,
+                        "cos_hour": cos_hour,
+                        "day_type": day_type,
+                        "local_dt": local_dt,
+                    }),
+                    key,
+                )
+                for key in self._state
+            ]
+            return pd.DataFrame(empty_rows)
 
         tu_future.sort_values("arrival_time", inplace=True)
         grouped = tu_future.groupby(["stop_id", "direction_id"], as_index=False).first()
+
+        self._multi_routes = grouped["route_id"].nunique() > 1
+
+        all_keys = set(self._state.keys())
+        keys_with_tu = set(zip(grouped["stop_id"], grouped["direction_id"]))
+        missing_keys = all_keys - keys_with_tu
+        feats = []
+        for key in missing_keys:
+            feats.append(
+                self._empty_feature_row(
+                    pd.Series({
+                        "route_id": None,
+                        "sin_hour": sin_hour,
+                        "cos_hour": cos_hour,
+                        "day_type": day_type,
+                        "local_dt": local_dt,
+                    }),
+                    key,
+                )
+            )
 
         grouped["sched_arr"] = grouped["arrival_time"] - grouped["arrival_delay"]
         grouped["sched_dep"] = grouped["departure_time"] - grouped["departure_delay"]
@@ -107,12 +173,25 @@ class SnapshotFeatureBuilder:
             (vehicles["snapshot_timestamp"] <= ts)
             & (vehicles["snapshot_timestamp"] >= ts - self.LAG_VP_SECS)
         ]
-
-        feats = []
-        multi_routes = grouped["route_id"].nunique() > 1
         for _, row in grouped.iterrows():
             key = (row["stop_id"], int(row["direction_id"]))
-            state = self.state[key]
+            state = self._state[key]
+
+            row["sin_hour"] = sin_hour
+            row["cos_hour"] = cos_hour
+            row["day_type"] = day_type
+            row["local_dt"] = local_dt
+
+            row["arrival_delay"] = np.clip(row["arrival_delay"], -self.DELAY_CAP, self.DELAY_CAP)
+            row["departure_delay"] = np.clip(
+                row["departure_delay"], -self.DELAY_CAP, self.DELAY_CAP
+            )
+
+            if (row["trip_id"] == state.last_trip_id) or (
+                row["arrival_time"] - ts > self.MAX_FUTURE_SECS
+            ):
+                feats.append(self._empty_feature_row(row, key))
+                continue
 
             if is_new_service_day(
                 state.last_actual_arrival, row["arrival_time"], self.RESET_AT_HOUR
@@ -155,7 +234,7 @@ class SnapshotFeatureBuilder:
                 idx = -1
             upstream_delays = []
             for prev_stop in stops[max(0, idx - 2) : idx]:
-                prev_state = self.state.get((prev_stop, int(row["direction_id"])))
+                prev_state = self._state.get((prev_stop, int(row["direction_id"])))
                 if prev_state and prev_state.last_arr_delay is not None:
                     upstream_delays.append(prev_state.last_arr_delay)
             upstream_delay_mean_2 = float(np.mean(upstream_delays)) if upstream_delays else np.nan
@@ -187,12 +266,12 @@ class SnapshotFeatureBuilder:
             feats.append({
                 "stop_id": row["stop_id"],
                 "direction_id": row["direction_id"],
-                **({"route_id": row["route_id"]} if multi_routes else {}),
+                **({"route_id": row["route_id"]} if self._multi_routes else {}),
                 "arrival_delay_t": row["arrival_delay"],
                 "departure_delay_t": row["departure_delay"],
-                "headway_t": headway if not np.isnan(headway) else sched_hw,
-                "rel_headway_t": rel_headway if not np.isnan(rel_headway) else 1.0,
-                "dwell_delta_t": dwell_delta if not np.isnan(dwell_delta) else 0.0,
+                "headway_t": headway,
+                "rel_headway_t": rel_headway,
+                "dwell_delta_t": dwell_delta,
                 "delay_arrival_grad_t": delay_arr_grad,
                 "delay_departure_grad_t": delay_dep_grad,
                 "upstream_delay_mean_2": upstream_delay_mean_2,
@@ -208,6 +287,7 @@ class SnapshotFeatureBuilder:
                 "hub_flag": self.hub_flag.get(row["stop_id"], 0),
                 "is_train_present": is_present,
                 "data_fresh_secs": data_fresh,
+                "local_dt": local_dt,
             })
 
             # update state
@@ -216,6 +296,7 @@ class SnapshotFeatureBuilder:
             state.last_arr_delay = row["arrival_delay"]
             state.last_dep_delay = row["departure_delay"]
             state.last_sched_arrival = row["sched_arr"]
+            state.last_trip_id = row["trip_id"]
             state.rolling_delay_5.append(row["arrival_delay"])
             state.rolling_delay_15.append(row["arrival_delay"])
             if not np.isnan(headway):
@@ -225,4 +306,14 @@ class SnapshotFeatureBuilder:
 
         df = pd.DataFrame(feats)
         df.set_index(["stop_id", "direction_id"], inplace=True)
+
+        if self._log_every and (ts % (self._log_every * 60) == 0):
+            logger.info(
+                "Snapshot %s — rows=%d, headway_nan%%=%.1f, delay_nan%%=%.1f",
+                local_dt.strftime("%Y-%m-%d %H:%M"),
+                len(feats),
+                df["headway_t"].isna().mean() * 100,
+                df["arrival_delay_t"].isna().mean() * 100,
+            )
+
         return df
