@@ -1,6 +1,7 @@
 import pandas as pd
 
 from metro_disruptions_intelligence.features import SnapshotFeatureBuilder
+from metro_disruptions_intelligence.utils_gtfsrt import make_fake_tu, make_fake_vp
 
 
 def _route_dir_to_stops(df: pd.DataFrame) -> dict:
@@ -20,3 +21,14 @@ def test_build_snapshot_features() -> None:
     feats = builder.build_snapshot_features(trip_now, veh_now, ts)
     assert not feats.empty
     assert isinstance(feats.index, pd.MultiIndex)
+
+
+def test_headway_bounds() -> None:
+    ts = 1_000
+    tu1 = make_fake_tu(ts - 30, ts + 10)
+    tu2 = make_fake_tu(ts, ts + 70)
+    vp = make_fake_vp(ts, stop_id="STOP")
+    builder = SnapshotFeatureBuilder({("R", 0): ["STOP"]})
+    builder.build_snapshot_features(tu1, vp, ts - 30)
+    feats = builder.build_snapshot_features(tu2, vp, ts)
+    assert feats["headway_t"].dropna().le(3600).all()
