@@ -9,6 +9,8 @@ import numpy as np
 import pandas as pd
 import pytz
 
+from .utils_gtfsrt import is_new_service_day
+
 
 class RollingState:
     """Container for per-station rolling information."""
@@ -28,6 +30,13 @@ class RollingState:
 
 class SnapshotFeatureBuilder:
     """Builder for per-minute snapshot features."""
+
+    MAX_FUTURE_SECS = 2 * 60 * 60
+    MAX_HEADWAY_SECS = 60 * 60
+    RESET_AT_HOUR = 3
+    LAG_TU_SECS = 60
+    LAG_VP_SECS = 30
+    MAX_DATA_FRESH_SECS = 24 * 3600
 
     def __init__(self, route_dir_to_stops: dict[tuple[str, int], list[str]]) -> None:
         """Create the builder from a mapping of route and direction to stop lists."""
@@ -68,12 +77,24 @@ class SnapshotFeatureBuilder:
     ) -> pd.DataFrame:
         """Create a feature frame for one snapshot."""
         sin_hour, cos_hour, day_type = self._time_features(ts)
+
         if trip_updates.empty:
             return pd.DataFrame()
-        mask = trip_updates["arrival_time"] >= ts
-        tu_future = trip_updates[mask].copy()
+
+        tu_now = trip_updates[
+            (trip_updates["snapshot_timestamp"] <= ts)
+            & (trip_updates["snapshot_timestamp"] >= ts - self.LAG_TU_SECS)
+        ]
+
+        mask = (tu_now["arrival_time"] >= ts) & (
+            tu_now["arrival_time"] - ts <= self.MAX_FUTURE_SECS
+        )
+
+        tu_future = tu_now[mask].copy()
+
         if tu_future.empty:
             return pd.DataFrame()
+
         tu_future.sort_values("arrival_time", inplace=True)
         grouped = tu_future.groupby(["stop_id", "direction_id"], as_index=False).first()
 
@@ -82,11 +103,22 @@ class SnapshotFeatureBuilder:
         grouped["dwell"] = grouped["departure_time"] - grouped["arrival_time"]
         grouped["sched_dwell"] = grouped["sched_dep"] - grouped["sched_arr"]
 
+        vp_recent = vehicles[
+            (vehicles["snapshot_timestamp"] <= ts)
+            & (vehicles["snapshot_timestamp"] >= ts - self.LAG_VP_SECS)
+        ]
+
         feats = []
         multi_routes = grouped["route_id"].nunique() > 1
         for _, row in grouped.iterrows():
             key = (row["stop_id"], int(row["direction_id"]))
             state = self.state[key]
+
+            if is_new_service_day(
+                state.last_actual_arrival, row["arrival_time"], self.RESET_AT_HOUR
+            ):
+                state.__init__()
+
             headway = np.nan
             rel_headway = np.nan
             sched_hw = np.nan
@@ -95,7 +127,9 @@ class SnapshotFeatureBuilder:
             delay_dep_grad = np.nan
             if state.last_actual_arrival is not None:
                 headway = row["arrival_time"] - state.last_actual_arrival
-                if state.last_sched_arrival is not None:
+                if headway <= 0 or headway > self.MAX_HEADWAY_SECS:
+                    headway = np.nan
+                elif state.last_sched_arrival is not None:
                     sched_hw = row["sched_arr"] - state.last_sched_arrival
                     if sched_hw:
                         rel_headway = headway / sched_hw
@@ -138,16 +172,17 @@ class SnapshotFeatureBuilder:
             )
 
             is_present = 0
-            data_fresh = 1e9
-            veh_now = vehicles[
-                (vehicles["stop_id"] == row["stop_id"])
-                & (vehicles["direction_id"] == row["direction_id"])
+            data_fresh = self.MAX_DATA_FRESH_SECS
+            veh_now = vp_recent[
+                (vp_recent["stop_id"] == row["stop_id"])
+                & (vp_recent["direction_id"] == row["direction_id"])
             ]
             if not veh_now.empty:
                 is_present = 1
                 data_fresh = ts - int(veh_now["snapshot_timestamp"].max())
             elif state.last_vehicle_ts is not None:
-                data_fresh = ts - int(state.last_vehicle_ts)
+                data_fresh = min(ts - int(state.last_vehicle_ts), self.MAX_DATA_FRESH_SECS)
+            data_fresh = min(data_fresh, self.MAX_DATA_FRESH_SECS)
 
             feats.append({
                 "stop_id": row["stop_id"],
