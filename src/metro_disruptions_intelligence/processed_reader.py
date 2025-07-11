@@ -12,6 +12,29 @@ import pytz
 
 FEEDS = ["alerts", "trip_updates", "vehicle_positions"]
 
+# ---------------------------------------------------------------------------
+# Internal helpers for dealing with filename date formats
+# ---------------------------------------------------------------------------
+_PATTERNS = (
+    "%Y-%d-%m-%H-%M",  # day-month
+    "%Y-%m-%d-%H-%M",  # month-day
+)
+
+
+def _try_parse(ts_part: str) -> datetime | None:
+    """Return a timezone-aware datetime if ``ts_part`` matches a pattern."""
+    for pat in _PATTERNS:
+        try:
+            return datetime.strptime(ts_part, pat).replace(tzinfo=pytz.UTC)
+        except ValueError:
+            continue
+    return None
+
+
+def _fname(dt: datetime, feed: str, day_first: bool) -> str:
+    pat = "%Y-%d-%m-%H-%M" if day_first else "%Y-%m-%d-%H-%M"
+    return f"{feed}_{dt.strftime(pat)}.parquet"
+
 
 def load_rt_dataset(
     processed_root: Path,
@@ -61,23 +84,25 @@ def load_rt_dataset(
 
 
 def discover_all_snapshot_minutes(root: Path) -> list[int]:
-    """Return all snapshot minutes from trip update files."""
-    files = sorted((root / "trip_updates").rglob("trip_updates_*.parquet"))
+    """Return epoch-seconds for every snapshot minute present on disk."""
     minutes: list[int] = []
-    for f in files:
+    for f in (root / "trip_updates").rglob("trip_updates_*.parquet"):
         ts_part = f.stem.split("trip_updates_")[-1]
-        try:
-            dt = datetime.strptime(ts_part, "%Y-%m-%d-%H-%M").replace(tzinfo=pytz.UTC)
-        except ValueError:
-            continue
-        minutes.append(int(dt.timestamp()))
-    return sorted(minutes)
+        dt = _try_parse(ts_part)
+        if dt:
+            minutes.append(int(dt.timestamp()))
+    return sorted(set(minutes))
 
 
 def compose_path(ts: int, root: Path, feed: str) -> Path:
-    """Construct Parquet path for ``feed`` at ``ts``."""
+    """Construct Parquet path for ``feed`` at ``ts``.
+
+    Returns the existing path if either date format is present.
+    """
     dt = datetime.fromtimestamp(ts, tz=pytz.UTC)
-    fname = f"{feed}_{dt:%Y-%m-%d-%H-%M}.parquet"
-    return (
-        root / feed / f"year={dt.year:04d}" / f"month={dt.month:02d}" / f"day={dt.day:02d}" / fname
-    )
+
+    base = root / feed / f"year={dt.year:04d}" / f"month={dt.month:02d}" / f"day={dt.day:02d}"
+    path_d = base / _fname(dt, feed, day_first=True)
+    if path_d.exists():
+        return path_d
+    return base / _fname(dt, feed, day_first=False)
