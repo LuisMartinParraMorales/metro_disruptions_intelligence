@@ -330,3 +330,25 @@ def write_features(feats: pd.DataFrame, out_file: Path) -> None:
     out_file.parent.mkdir(parents=True, exist_ok=True)
     feats.to_parquet(out_file, compression="snappy", index=False)
     logger.info("Wrote %s rows=%d", out_file, len(feats))
+
+
+def build_route_map(processed_root: Path) -> dict[tuple[str, int], list[str]]:
+    """Return mapping ``{(route_id, direction_id): [stop_id, ...]}``.
+
+    All ``trip_updates`` Parquet files under ``processed_root`` are scanned and
+    only the columns required to build the stop sequence are loaded. Duplicate
+    rows are dropped and the stop list for each route/direction pair is sorted
+    by ``stop_sequence``.
+    """
+
+    files = (processed_root / "trip_updates").rglob("trip_updates_*.parquet")
+    frames = [
+        pd.read_parquet(f, columns=["route_id", "direction_id", "stop_id", "stop_sequence"])
+        for f in files
+    ]
+    if not frames:
+        raise FileNotFoundError("No trip_updates*.parquet snapshots found")
+    df = pd.concat(frames, ignore_index=True)
+    df = df.drop_duplicates().sort_values(["route_id", "direction_id", "stop_sequence"])
+    grouped = df.groupby(["route_id", "direction_id"])["stop_id"].apply(list)
+    return grouped.to_dict()
