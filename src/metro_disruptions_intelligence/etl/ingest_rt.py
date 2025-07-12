@@ -11,15 +11,17 @@ from pathlib import Path
 import pandas as pd
 from pydantic import BaseModel
 
+from .parse_alerts import parse_one_alert_file
 from .parse_trip_updates import parse_one_trip_update_file
 from .parse_vehicle_positions import parse_one_vehicle_position_file
-from .parse_alerts import parse_one_alert_file
 from .write_parquet import write_df_to_partitioned_parquet
 
 FILENAME_RE = re.compile(r"(\d{4})_(\d{2})_(\d{2})_(\d{2})_(\d{2})_(\d{2})\.json")
 
 
 class IngestRTConfig(BaseModel):
+    """Configuration for realtime ingestion."""
+
     raw_root: Path
     processed_root: Path
     union: bool = False
@@ -78,16 +80,19 @@ def ingest_all_rt(
         raw_dir = raw_root / feed
         if raw_dir.exists():
             files = sorted(raw_dir.glob("*.json"))
+            if not files:
+                pattern = f"*{feed}*.json"
+                files = sorted(raw_root.glob(pattern))
         else:
             pattern = f"*{feed}*.json"
             files = sorted(raw_root.glob(pattern))
-            if not files:
-                if feed == "alerts":
-                    files = sorted(raw_root.glob("*alert*.json"))
-                elif feed == "trip_updates":
-                    files = sorted(raw_root.glob("*trip_update*.json"))
-                elif feed == "vehicle_positions":
-                    files = sorted(raw_root.glob("*vehicle*position*.json"))
+        if not files:
+            if feed == "alerts":
+                files = sorted(raw_root.glob("*alert*.json"))
+            elif feed == "trip_updates":
+                files = sorted(raw_root.glob("*trip_update*.json"))
+            elif feed == "vehicle_positions":
+                files = sorted(raw_root.glob("*vehicle*position*.json"))
 
         if start_time or end_time:
             filtered = []
@@ -134,9 +139,7 @@ def union_all_feeds(processed_root: Path, output_parquet: Path) -> Path:
 
 def _parse_args(argv: list[str] | None = None) -> IngestRTConfig:
     parser = argparse.ArgumentParser(description="Ingest realtime GTFS feeds")
-    parser.add_argument(
-        "raw_root", type=Path, help="Directory with raw JSON subfolders"
-    )
+    parser.add_argument("raw_root", type=Path, help="Directory with raw JSON subfolders")
     parser.add_argument(
         "--processed-root",
         type=Path,
@@ -144,9 +147,7 @@ def _parse_args(argv: list[str] | None = None) -> IngestRTConfig:
         help="Destination directory for partitioned Parquet",
     )
     parser.add_argument(
-        "--union",
-        action="store_true",
-        help="Also create a combined station_event.parquet file",
+        "--union", action="store_true", help="Also create a combined station_event.parquet file"
     )
     parser.add_argument(
         "--start-time",
@@ -155,10 +156,7 @@ def _parse_args(argv: list[str] | None = None) -> IngestRTConfig:
         help="Only ingest files with timestamp >= START_TIME (YYYY-MM-DD or YYYY_MM_DD_HH_MM_SS)",
     )
     parser.add_argument(
-        "--end-time",
-        type=str,
-        default=None,
-        help="Only ingest files with timestamp <= END_TIME",
+        "--end-time", type=str, default=None, help="Only ingest files with timestamp <= END_TIME"
     )
     args = parser.parse_args(argv)
     cfg_dict = vars(args)
@@ -170,12 +168,10 @@ def _parse_args(argv: list[str] | None = None) -> IngestRTConfig:
 
 
 def main(argv: list[str] | None = None) -> None:
+    """Entry point for the ``ingest_rt`` CLI."""
     cfg = _parse_args(argv)
     ingest_all_rt(
-        cfg.raw_root,
-        cfg.processed_root,
-        start_time=cfg.start_time,
-        end_time=cfg.end_time,
+        cfg.raw_root, cfg.processed_root, start_time=cfg.start_time, end_time=cfg.end_time
     )
     if cfg.union:
         output_parquet = cfg.processed_root.parent / "station_event.parquet"
