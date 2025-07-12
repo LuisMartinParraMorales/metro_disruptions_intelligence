@@ -11,5 +11,6 @@ def test_compose_path_partition(tmp_path: Path) -> None:
     base.mkdir(parents=True)
     target = base / "trip_updates_2025-22-05-11-55.parquet"
     target.touch()
-    ts = int(datetime(2025, 5, 22, 11, 55, tzinfo=pytz.UTC).timestamp())
+    london = pytz.timezone("Europe/London")
+    ts = int(london.localize(datetime(2025, 5, 22, 11, 55)).timestamp())
     assert compose_path(ts, tmp_path, "trip_updates") == target

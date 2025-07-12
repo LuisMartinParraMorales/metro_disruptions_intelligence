@@ -10,6 +10,10 @@ from typing import Iterable
 import pandas as pd
 import pytz
 
+_TZ_LONDON = pytz.timezone("Europe/London")
+# Filenames are stamped in London local time (GMT/BST); we convert to UTC
+# to align with ``snapshot_timestamp`` values.
+
 FEEDS = ["alerts", "trip_updates", "vehicle_positions"]
 
 # ---------------------------------------------------------------------------
@@ -22,10 +26,12 @@ _PATTERNS = (
 
 
 def _try_parse(ts_part: str) -> datetime | None:
-    """Return a timezone-aware datetime if ``ts_part`` matches a pattern."""
+    """Return UTC datetime parsed from a London-based filename."""
     for pat in _PATTERNS:
         try:
-            return datetime.strptime(ts_part, pat).replace(tzinfo=pytz.UTC)
+            naive = datetime.strptime(ts_part, pat)
+            local = _TZ_LONDON.localize(naive)
+            return local.astimezone(pytz.UTC)
         except ValueError:
             continue
     return None
@@ -33,7 +39,8 @@ def _try_parse(ts_part: str) -> datetime | None:
 
 def _fname(dt: datetime, feed: str, day_first: bool) -> str:
     pat = "%Y-%d-%m-%H-%M" if day_first else "%Y-%m-%d-%H-%M"
-    return f"{feed}_{dt.strftime(pat)}.parquet"
+    local = dt.astimezone(_TZ_LONDON)
+    return f"{feed}_{local.strftime(pat)}.parquet"
 
 
 def load_rt_dataset(
@@ -99,7 +106,7 @@ def compose_path(ts: int, root: Path, feed: str) -> Path:
 
     Returns the existing path if either date format is present.
     """
-    dt = datetime.fromtimestamp(ts, tz=pytz.UTC)
+    dt = datetime.fromtimestamp(ts, tz=_TZ_LONDON)
 
     base = root / feed / f"year={dt.year:04d}" / f"month={dt.month:02d}" / f"day={dt.day:02d}"
     path_d = base / _fname(dt, feed, day_first=True)
