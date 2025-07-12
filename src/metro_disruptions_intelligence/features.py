@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import logging
 from collections import defaultdict, deque
+from pathlib import Path
 
 import numpy as np
 import pandas as pd
@@ -46,7 +47,10 @@ class SnapshotFeatureBuilder:
     ) -> None:
         """Create the builder from a mapping of route and direction to stop lists."""
         self.route_dir_to_stops = route_dir_to_stops
-        self._state: dict[tuple[str, int], RollingState] = defaultdict(RollingState)
+        self._state: dict[tuple[str, int], RollingState] = {}
+        for (_route, direction), stops in route_dir_to_stops.items():
+            for stop in stops:
+                self._state[(stop, direction)] = RollingState()
         self._multi_routes = False
         self._log_every = log_every
         self._build_graph()
@@ -123,6 +127,8 @@ class SnapshotFeatureBuilder:
         )
 
         tu_future = tu_now[mask].copy()
+        tu_future["arrival_delay"] = tu_future["arrival_delay"].fillna(0.0)
+        tu_future["departure_delay"] = tu_future["departure_delay"].fillna(0.0)
 
         if tu_future.empty:
             empty_rows = [
@@ -317,3 +323,10 @@ class SnapshotFeatureBuilder:
             )
 
         return df
+
+
+def write_features(feats: pd.DataFrame, out_file: Path) -> None:
+    """Write ``feats`` to ``out_file`` overwriting any existing file."""
+    out_file.parent.mkdir(parents=True, exist_ok=True)
+    feats.to_parquet(out_file, compression="snappy", index=False)
+    logger.info("Wrote %s rows=%d", out_file, len(feats))

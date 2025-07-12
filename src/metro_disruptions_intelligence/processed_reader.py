@@ -10,6 +10,8 @@ from typing import Iterable
 import pandas as pd
 import pytz
 
+from .utils_gtfsrt import _fname, try_parse
+
 _TZ_LONDON = pytz.timezone("Europe/London")
 # Filenames are stamped in London local time (GMT/BST); we convert to UTC
 # to align with ``snapshot_timestamp`` values.
@@ -19,28 +21,18 @@ FEEDS = ["alerts", "trip_updates", "vehicle_positions"]
 # ---------------------------------------------------------------------------
 # Internal helpers for dealing with filename date formats
 # ---------------------------------------------------------------------------
-_PATTERNS = (
-    "%Y-%d-%m-%H-%M",  # day-month
-    "%Y-%m-%d-%H-%M",  # month-day
-)
 
 
-def _try_parse(ts_part: str) -> datetime | None:
-    """Return UTC datetime parsed from a London-based filename."""
-    for pat in _PATTERNS:
-        try:
-            naive = datetime.strptime(ts_part, pat)
-            local = _TZ_LONDON.localize(naive)
-            return local.astimezone(pytz.UTC)
-        except ValueError:
-            continue
-    return None
-
-
-def _fname(dt: datetime, feed: str, day_first: bool) -> str:
-    pat = "%Y-%d-%m-%H-%M" if day_first else "%Y-%m-%d-%H-%M"
-    local = dt.astimezone(_TZ_LONDON)
-    return f"{feed}_{local.strftime(pat)}.parquet"
+def _try_parse(path: Path) -> datetime | None:
+    """Return UTC datetime parsed from ``path`` using partition hints."""
+    ts_part = path.stem.split("_")[-1]
+    try:
+        year = int(path.parents[2].name.split("=")[-1])
+        month = int(path.parents[1].name.split("=")[-1])
+        day = int(path.parent.name.split("=")[-1])
+    except (IndexError, ValueError):
+        return None
+    return try_parse(ts_part, year, month, day)
 
 
 def load_rt_dataset(
@@ -94,8 +86,7 @@ def discover_all_snapshot_minutes(root: Path) -> list[int]:
     """Return epoch-seconds for every snapshot minute present on disk."""
     minutes: list[int] = []
     for f in (root / "trip_updates").rglob("trip_updates_*.parquet"):
-        ts_part = f.stem.split("trip_updates_")[-1]
-        dt = _try_parse(ts_part)
+        dt = _try_parse(f)
         if dt:
             minutes.append(int(dt.timestamp()))
     return sorted(set(minutes))

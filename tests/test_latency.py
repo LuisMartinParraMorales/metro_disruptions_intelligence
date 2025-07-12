@@ -19,4 +19,5 @@ def test_discards_90s_tu_lag():
     vp = make_fake_vp(ts, stop_id="STOP")
     builder = SnapshotFeatureBuilder(ROUTE_MAP)
     feats = builder.build_snapshot_features(tu, vp, ts)
-    assert feats.empty
+    assert not feats.empty
+    assert feats[["arrival_delay_t", "departure_delay_t"]].isna().all().all()

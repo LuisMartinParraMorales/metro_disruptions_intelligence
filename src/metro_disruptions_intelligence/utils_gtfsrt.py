@@ -9,6 +9,12 @@ import pandas as pd
 import pytz
 
 _TZ_SYDNEY = pytz.timezone("Australia/Sydney")
+_TZ_LONDON = pytz.timezone("Europe/London")
+
+_PATTERNS = (
+    "%Y-%d-%m-%H-%M",  # day-month
+    "%Y-%m-%d-%H-%M",  # month-day
+)
 
 # Constants shared between features and tests
 DELAY_CAP = 300
@@ -72,3 +78,23 @@ def make_fake_vp(snapshot_ts: int, *, stop_id: str = "STOP", direction_id: int =
         "stop_id": [stop_id],
         "direction_id": [direction_id],
     })
+
+
+def _fname(dt: datetime, feed: str, day_first: bool) -> str:
+    """Return Parquet filename for ``feed`` at ``dt`` in London time."""
+    pat = "%Y-%d-%m-%H-%M" if day_first else "%Y-%m-%d-%H-%M"
+    local = dt.astimezone(_TZ_LONDON)
+    return f"{feed}_{local.strftime(pat)}.parquet"
+
+
+def try_parse(ts_part: str, year: int, month: int, day: int) -> datetime | None:
+    """Parse ``ts_part`` using both patterns, validating against partition date."""
+    for pat in _PATTERNS:
+        try:
+            naive = datetime.strptime(ts_part, pat)
+        except ValueError:
+            continue
+        if naive.year == year and naive.month == month and naive.day == day:
+            local = _TZ_LONDON.localize(naive)
+            return local.astimezone(pytz.UTC)
+    return None

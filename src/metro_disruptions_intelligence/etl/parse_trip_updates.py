@@ -4,33 +4,34 @@ from __future__ import annotations
 
 import json
 from pathlib import Path
-from typing import Dict, List, Optional
 
 import pandas as pd
 from pydantic import BaseModel
 
 
 class TripUpdateRow(BaseModel):
+    """Single stop update extracted from a TripUpdate message."""
+
     snapshot_timestamp: int
     trip_id: str
     route_id: str
     direction_id: int
     start_time: str
     start_date: str
-    vehicle_id: Optional[str]
+    vehicle_id: str | None
     stop_sequence: int
     stop_id: str
-    arrival_time: Optional[int] = None
-    departure_time: Optional[int] = None
-    arrival_delay: Optional[int] = None
-    departure_delay: Optional[int] = None
+    arrival_time: int | None = None
+    departure_time: int | None = None
+    arrival_delay: int | None = None
+    departure_delay: int | None = None
 
 
 def parse_one_trip_update_file(json_path: Path) -> pd.DataFrame:
     """Return all stop time updates contained in ``json_path``."""
     raw = json.loads(json_path.read_text())
     header_ts = int(raw["header"]["timestamp"])
-    rows: List[Dict] = []
+    rows: list[dict] = []
     for entity in raw.get("entity", []):
         tu = entity.get("trip_update")
         if not tu:
@@ -50,8 +51,8 @@ def parse_one_trip_update_file(json_path: Path) -> pd.DataFrame:
                 stop_id=stu["stop_id"],
                 arrival_time=stu.get("arrival", {}).get("time"),
                 departure_time=stu.get("departure", {}).get("time"),
-                arrival_delay=stu.get("arrival", {}).get("delay"),
-                departure_delay=stu.get("departure", {}).get("delay"),
+                arrival_delay=float(stu.get("arrival", {}).get("delay", 0.0) or 0.0),
+                departure_delay=float(stu.get("departure", {}).get("delay", 0.0) or 0.0),
             )
             rows.append(row.dict())
     return pd.DataFrame(rows)
