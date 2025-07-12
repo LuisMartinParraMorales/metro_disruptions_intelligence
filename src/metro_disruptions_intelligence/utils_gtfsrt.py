@@ -18,8 +18,8 @@ _PATTERNS = (
 
 # Constants shared between features and tests
 DELAY_CAP = 300
-LAG_TU_SECS = 60
-LAG_VP_SECS = 30
+LAG_TU_SECS = 180   # trip_updates can now be up to 3 minutes behind
+LAG_VP_SECS = 60    # vehicle_positions can now be up to 1 minute behind
 MAX_FUTURE_SECS = 2 * 60 * 60
 MAX_HEADWAY_SECS = 60 * 60
 

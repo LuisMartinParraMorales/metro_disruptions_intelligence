@@ -117,6 +117,14 @@ class SnapshotFeatureBuilder:
         if trip_updates.empty:
             return pd.DataFrame()
 
+ # ── DEBUG: log how far behind each TU message is ──────────────
+        diffs = ts - trip_updates["snapshot_timestamp"]
+        logger.debug(
+            "snapshot %s: TU lag range = [%d, %d] sec (LAG_TU_SECS=%d)",
+            local_dt.strftime("%Y-%m-%d %H:%M"),
+            int(diffs.min()), int(diffs.max()), self.LAG_TU_SECS,
+        )
+
         tu_now = trip_updates[
             (trip_updates["snapshot_timestamp"] <= ts)
             & (trip_updates["snapshot_timestamp"] >= ts - self.LAG_TU_SECS)
