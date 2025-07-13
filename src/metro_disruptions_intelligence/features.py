@@ -154,11 +154,19 @@ class SnapshotFeatureBuilder:
         tu_now = trip_updates[trip_updates["snapshot_timestamp"] <= ts]
 
         arr_time = tu_now["arrival_time"].astype(float)
-        mask = (arr_time >= ts - 1) & (arr_time - ts <= self.MAX_FUTURE_SECS + 1)
+        arr_diffs = arr_time - ts
+        mask = (arr_time >= ts - 1) & (arr_diffs <= self.MAX_FUTURE_SECS + 1)
 
+        dropped = (~mask).sum()
         tu_future = tu_now[mask].copy()
         logger.debug(
             " After lag removal: tu_now=%d \u2192 future_masked=%d", len(tu_now), len(tu_future)
+        )
+        logger.debug(
+            " Future-window diffs range=[%.1f, %.1f]; dropped=%d",
+            arr_diffs.min(),
+            arr_diffs.max(),
+            dropped,
         )
         tu_future["arrival_delay"] = tu_future["arrival_delay"].fillna(0.0)
         tu_future["departure_delay"] = tu_future["departure_delay"].fillna(0.0)
@@ -247,8 +255,10 @@ class SnapshotFeatureBuilder:
             if is_new_service_day(
                 state.last_actual_arrival, row["arrival_time"], self.RESET_AT_HOUR
             ):
-                logger.debug(
-                    "Service day reset: %s -> %s",
+                logger.info(
+                    "Service day reset for %s/%d: %s -> %s",
+                    key[0],
+                    key[1],
                     sydney_time(state.last_actual_arrival).strftime("%Y-%m-%d %H:%M")
                     if state.last_actual_arrival
                     else None,
