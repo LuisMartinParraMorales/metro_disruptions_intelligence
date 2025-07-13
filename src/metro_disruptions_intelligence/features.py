@@ -39,6 +39,8 @@ class SnapshotFeatureBuilder:
     RESET_AT_HOUR = 3
     LAG_TU_SECS = CONSTANTS.LAG_TU_SECS
     LAG_VP_SECS = CONSTANTS.LAG_VP_SECS
+    LAG_WINDOW = 60  # minutes to keep history for dynamic tolerance
+    LAG_BUFFER = 10
     MAX_DATA_FRESH_SECS = 24 * 3600
     DELAY_CAP = CONSTANTS.DELAY_CAP
 
@@ -54,6 +56,8 @@ class SnapshotFeatureBuilder:
         self._multi_routes = False
         self._log_every = log_every
         self._build_graph()
+        self._tu_lag_hist: deque[float] = deque(maxlen=self.LAG_WINDOW)
+        self._vp_lag_hist: deque[float] = deque(maxlen=self.LAG_WINDOW)
 
     def _build_graph(self) -> None:
         """Build node degree and hub flag graphs from the stop sequences."""
@@ -114,27 +118,57 @@ class SnapshotFeatureBuilder:
         local_dt = sydney_time(ts)
         sin_hour, cos_hour, day_type = self._time_features(ts)
 
+        logger.debug(
+            "ts=%s \u2192 total TUs=%d", local_dt.strftime("%Y-%m-%d %H:%M"), len(trip_updates)
+        )
+
+        if not trip_updates.empty:
+            tu_lags = ts - trip_updates["snapshot_timestamp"]
+            self._tu_lag_hist.append(float(np.percentile(tu_lags, 95)))
+        if not vehicles.empty:
+            vp_lags = ts - vehicles["snapshot_timestamp"]
+            self._vp_lag_hist.append(float(np.percentile(vp_lags, 95)))
+        tu_p95 = np.percentile(self._tu_lag_hist, 95) if self._tu_lag_hist else 0
+        vp_p95 = np.percentile(self._vp_lag_hist, 95) if self._vp_lag_hist else 0
+        self.LAG_TU_SECS = max(CONSTANTS.LAG_TU_SECS, int(tu_p95) + self.LAG_BUFFER)
+        self.LAG_VP_SECS = max(CONSTANTS.LAG_VP_SECS, int(vp_p95) + self.LAG_BUFFER)
+        logger.debug(
+            "Dynamic lags: p95_tu=%d p95_vp=%d -> tolerances %d/%d",
+            tu_p95,
+            vp_p95,
+            self.LAG_TU_SECS,
+            self.LAG_VP_SECS,
+        )
+
         if trip_updates.empty:
             return pd.DataFrame()
 
- # ── DEBUG: log how far behind each TU message is ──────────────
+        missing = set(zip(trip_updates["stop_id"], trip_updates["direction_id"])) - set(
+            self._state.keys()
+        )
+        if missing:
+            logger.warning("Found new stop/direction keys not in route_map: %s", missing)
+
+        # ── DEBUG: log how far behind each TU message is ──────────────
         diffs = ts - trip_updates["snapshot_timestamp"]
         logger.debug(
             "snapshot %s: TU lag range = [%d, %d] sec (LAG_TU_SECS=%d)",
             local_dt.strftime("%Y-%m-%d %H:%M"),
-            int(diffs.min()), int(diffs.max()), self.LAG_TU_SECS,
+            int(diffs.min()),
+            int(diffs.max()),
+            self.LAG_TU_SECS,
         )
 
-        tu_now = trip_updates[
-            (trip_updates["snapshot_timestamp"] <= ts)
-            & (trip_updates["snapshot_timestamp"] >= ts - self.LAG_TU_SECS)
-        ]
+        # accept every TripUpdate up to the snapshot (no lower-bound filter)
+        tu_now = trip_updates[trip_updates["snapshot_timestamp"] <= ts]
 
-        mask = (tu_now["arrival_time"] >= ts) & (
-            tu_now["arrival_time"] - ts <= self.MAX_FUTURE_SECS
-        )
+        arr_time = tu_now["arrival_time"].astype(float)
+        mask = (arr_time >= ts - 1) & (arr_time - ts <= self.MAX_FUTURE_SECS + 1)
 
         tu_future = tu_now[mask].copy()
+        logger.debug(
+            " After lag removal: tu_now=%d \u2192 future_masked=%d", len(tu_now), len(tu_future)
+        )
         tu_future["arrival_delay"] = tu_future["arrival_delay"].fillna(0.0)
         tu_future["departure_delay"] = tu_future["departure_delay"].fillna(0.0)
 
@@ -210,6 +244,13 @@ class SnapshotFeatureBuilder:
             if is_new_service_day(
                 state.last_actual_arrival, row["arrival_time"], self.RESET_AT_HOUR
             ):
+                logger.debug(
+                    "Service day reset: %s -> %s",
+                    sydney_time(state.last_actual_arrival).strftime("%Y-%m-%d %H:%M")
+                    if state.last_actual_arrival
+                    else None,
+                    sydney_time(row["arrival_time"]).strftime("%Y-%m-%d %H:%M"),
+                )
                 state.__init__()
 
             headway = np.nan
@@ -348,7 +389,6 @@ def build_route_map(processed_root: Path) -> dict[tuple[str, int], list[str]]:
     rows are dropped and the stop list for each route/direction pair is sorted
     by ``stop_sequence``.
     """
-
     files = (processed_root / "trip_updates").rglob("trip_updates_*.parquet")
     frames = [
         pd.read_parquet(f, columns=["route_id", "direction_id", "stop_id", "stop_sequence"])
@@ -359,4 +399,9 @@ def build_route_map(processed_root: Path) -> dict[tuple[str, int], list[str]]:
     df = pd.concat(frames, ignore_index=True)
     df = df.drop_duplicates().sort_values(["route_id", "direction_id", "stop_sequence"])
     grouped = df.groupby(["route_id", "direction_id"])["stop_id"].apply(list)
-    return grouped.to_dict()
+    route_map = grouped.to_dict()
+    route_map_keys = {s for stops in route_map.values() for s in stops}
+    missing = set(df["stop_id"]) - route_map_keys
+    if missing:
+        logger.warning("Route map missing stops: %s", sorted(missing))
+    return route_map
