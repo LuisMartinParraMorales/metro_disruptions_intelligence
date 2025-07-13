@@ -37,13 +37,19 @@ class SnapshotFeatureBuilder:
     MAX_FUTURE_SECS = CONSTANTS.MAX_FUTURE_SECS
     MAX_HEADWAY_SECS = CONSTANTS.MAX_HEADWAY_SECS
     RESET_AT_HOUR = 3
-    LAG_TU_SECS = CONSTANTS.LAG_TU_SECS
-    LAG_VP_SECS = CONSTANTS.LAG_VP_SECS
+    LAG_TU_MIN_SECS = CONSTANTS.LAG_TU_SECS
+    LAG_VP_MIN_SECS = CONSTANTS.LAG_VP_SECS
+    LAG_BUFFER_SECS = 10
+    LAG_HISTORY_MIN = 60
     MAX_DATA_FRESH_SECS = 24 * 3600
     DELAY_CAP = CONSTANTS.DELAY_CAP
 
     def __init__(
-        self, route_dir_to_stops: dict[tuple[str, int], list[str]], *, log_every: int | None = 60
+        self,
+        route_dir_to_stops: dict[tuple[str, int], list[str]],
+        *,
+        log_every: int | None = 60,
+        dynamic_lag: bool = True,
     ) -> None:
         """Create the builder from a mapping of route and direction to stop lists."""
         self.route_dir_to_stops = route_dir_to_stops
@@ -54,6 +60,11 @@ class SnapshotFeatureBuilder:
         self._multi_routes = False
         self._log_every = log_every
         self._build_graph()
+        self._dynamic_lag = dynamic_lag
+        self.LAG_TU_SECS = self.LAG_TU_MIN_SECS
+        self.LAG_VP_SECS = self.LAG_VP_MIN_SECS
+        self._lag_hist_tu: deque[int] = deque(maxlen=self.LAG_HISTORY_MIN)
+        self._lag_hist_vp: deque[int] = deque(maxlen=self.LAG_HISTORY_MIN)
 
     def _build_graph(self) -> None:
         """Build node degree and hub flag graphs from the stop sequences."""
@@ -136,6 +147,8 @@ class SnapshotFeatureBuilder:
             int(diffs.max()),
             self.LAG_TU_SECS,
         )
+        if self._dynamic_lag:
+            self._lag_hist_tu.extend(diffs.clip(lower=0).astype(int))
 
         # accept every TripUpdate up to the snapshot (no lower-bound filter)
         tu_now = trip_updates[trip_updates["snapshot_timestamp"] <= ts]
@@ -194,6 +207,18 @@ class SnapshotFeatureBuilder:
         grouped["sched_dep"] = grouped["departure_time"] - grouped["departure_delay"]
         grouped["dwell"] = grouped["departure_time"] - grouped["arrival_time"]
         grouped["sched_dwell"] = grouped["sched_dep"] - grouped["sched_arr"]
+
+        if self._dynamic_lag:
+            if not vehicles.empty:
+                vp_diffs = ts - vehicles["snapshot_timestamp"]
+                self._lag_hist_vp.extend(vp_diffs.clip(lower=0).astype(int))
+            if self._lag_hist_tu:
+                tu_p95 = int(np.percentile(self._lag_hist_tu, 95))
+                self.LAG_TU_SECS = max(self.LAG_TU_MIN_SECS, tu_p95 + self.LAG_BUFFER_SECS)
+            if self._lag_hist_vp:
+                vp_p95 = int(np.percentile(self._lag_hist_vp, 95))
+                self.LAG_VP_SECS = max(self.LAG_VP_MIN_SECS, vp_p95 + self.LAG_BUFFER_SECS)
+            logger.debug("lag_tolerance adjusted: TU=%d VP=%d", self.LAG_TU_SECS, self.LAG_VP_SECS)
 
         vp_recent = vehicles[
             (vehicles["snapshot_timestamp"] <= ts)
@@ -377,4 +402,18 @@ def build_route_map(processed_root: Path) -> dict[tuple[str, int], list[str]]:
     df = pd.concat(frames, ignore_index=True)
     df = df.drop_duplicates().sort_values(["route_id", "direction_id", "stop_sequence"])
     grouped = df.groupby(["route_id", "direction_id"])["stop_id"].apply(list)
-    return grouped.to_dict()
+    route_map = grouped.to_dict()
+
+    unique_stop_ids = set(df["stop_id"].unique())
+    route_map_keys: set[str] = set()
+    for stops in route_map.values():
+        route_map_keys.update(stops)
+    missing = unique_stop_ids - route_map_keys
+    if missing:
+        logger.warning(
+            "Route map missing %d stop_ids: %s", len(missing), sorted(list(missing))[:10]
+        )
+    else:
+        logger.debug("Route map covers all %d stop_ids", len(unique_stop_ids))
+
+    return route_map
