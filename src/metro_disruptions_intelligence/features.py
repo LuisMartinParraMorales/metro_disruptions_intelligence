@@ -155,7 +155,13 @@ class SnapshotFeatureBuilder:
 
         arr_time = tu_now["arrival_time"].astype(float)
         arr_diffs = arr_time - ts
-        mask = (arr_time >= ts - 1) & (arr_diffs <= self.MAX_FUTURE_SECS + 1)
+
+        future_diffs = arr_diffs[arr_diffs >= 0]
+        window = self.MAX_FUTURE_SECS
+        if not future_diffs.empty:
+            pct95 = np.percentile(future_diffs, 95)
+            window = min(max(window, pct95), 4 * 3600)
+        mask = (arr_time >= ts - 1) & (arr_diffs <= window + 1)
 
         dropped = (~mask).sum()
         tu_future = tu_now[mask].copy()
@@ -163,9 +169,10 @@ class SnapshotFeatureBuilder:
             " After lag removal: tu_now=%d \u2192 future_masked=%d", len(tu_now), len(tu_future)
         )
         logger.debug(
-            " Future-window diffs range=[%.1f, %.1f]; dropped=%d",
+            " Future-window diffs range=[%.1f, %.1f]; used_window=%d dropped=%d",
             arr_diffs.min(),
             arr_diffs.max(),
+            window,
             dropped,
         )
         tu_future["arrival_delay"] = tu_future["arrival_delay"].fillna(0.0)
@@ -188,7 +195,9 @@ class SnapshotFeatureBuilder:
             ]
             return pd.DataFrame(empty_rows)
 
-        tu_future.sort_values("arrival_time", inplace=True)
+        tu_future["_tdiff"] = (tu_future["arrival_time"] - ts).abs()
+        tu_future.sort_values("_tdiff", inplace=True)
+        tu_future.drop(columns="_tdiff", inplace=True)
         grouped = tu_future.groupby(["stop_id", "direction_id"], as_index=False).first()
 
         self._multi_routes = grouped["route_id"].nunique() > 1
