@@ -27,6 +27,19 @@ def test_empty_dataframe_returns_none(tmp_path: Path) -> None:
     assert not any(tmp_path.rglob("*.parquet"))
 
 
+def test_empty_dataframe_write_empty(tmp_path: Path) -> None:
+    df = pd.DataFrame({"snapshot_timestamp": [], "value": []})
+
+    prefix = "2020-03-05-00-00"
+    out = write_df_to_partitioned_parquet(df, tmp_path, prefix, write_empty=True)
+
+    expected = tmp_path / "year=2020" / "month=05" / "day=03" / f"{prefix}.parquet"
+    assert out == expected
+    assert out.exists()
+    df_read = pd.read_parquet(out)
+    assert df_read.empty
+
+
 def test_partition_uses_london_day(tmp_path: Path) -> None:
     """Ensure partitioning uses London local time."""
     import pytz
