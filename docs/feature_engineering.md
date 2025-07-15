@@ -21,3 +21,18 @@ This project builds per-station snapshots for Sydney Metro to detect disruptions
    Filenames follow the `YYYY-DD-MM-HH-MM` convention.
 
 These features are then fed to an IsolationForest model to flag anomalies in real time.
+
+## Command line usage
+
+The ``generate-features`` command automates route discovery and snapshot
+processing. Given a directory of processed GTFS-Realtime Parquet files it writes
+per-minute feature files to ``data/stations_features_time_series`` by default.
+
+```bash
+metro_disruptions_intelligence generate-features data/processed/rt \
+  --output-root data/stations_features_time_series \
+  --start-time 2025-06-03T10:00:00 --end-time 2025-06-03T10:30:00
+```
+
+The ``--start-time`` and ``--end-time`` options accept the same formats as the
+``ingest-rt`` command and allow selecting a date range to process.
