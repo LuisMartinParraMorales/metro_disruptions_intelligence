@@ -8,3 +8,5 @@ pydantic
 numpy
 requests
 tqdm
+
+PyYAML
