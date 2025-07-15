@@ -18,5 +18,6 @@ This project builds per-station snapshots for Sydney Metro to detect disruptions
    - presence indicators: `is_train_present`, `data_fresh_secs`
    A `route_id` column is included only when multiple routes appear in the snapshot.
 7. **Output** – The resulting DataFrame is indexed by `(stop_id, direction_id)` and written to `data/stations_features_time_series/year=YYYY/month=MM/day=DD/stations_feats_YYYY-DD-MM-HH-MM.parquet`.
+   Filenames follow the `YYYY-DD-MM-HH-MM` convention.
 
 These features are then fed to an IsolationForest model to flag anomalies in real time.
