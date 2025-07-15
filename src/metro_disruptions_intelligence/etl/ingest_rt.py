@@ -129,7 +129,7 @@ def ingest_all_rt(
                 df = parse_one_vehicle_position_file(jf)
             else:
                 df = parse_one_alert_file(jf)
-            write_df_to_partitioned_parquet(df, out_dir, f"{feed}_{prefix}")
+            write_df_to_partitioned_parquet(df, out_dir, f"{feed}_{prefix}", write_empty=True)
             logging.info("ingested %s -> %d rows", jf.name, len(df))
 
 
