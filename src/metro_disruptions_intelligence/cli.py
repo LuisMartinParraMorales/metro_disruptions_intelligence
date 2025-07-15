@@ -108,6 +108,8 @@ def generate_features_cmd(
 
         trip_now = pd.read_parquet(tu_file)
         veh_now = pd.read_parquet(vp_file)
+        if veh_now.empty:
+            logger.warning("vehicle_positions file %s contains no rows", vp_file)
         feats = builder.build_snapshot_features(trip_now, veh_now, ts)
 
         feats = feats.reset_index()
