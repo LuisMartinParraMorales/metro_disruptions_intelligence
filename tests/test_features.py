@@ -51,3 +51,29 @@ def test_snapshot_non_zero_delay() -> None:
     feats = builder.build_snapshot_features(tu, vp, ts).reset_index()
     assert not feats.empty
     assert (feats["arrival_delay_t"].abs() > 0).any()
+
+
+def test_empty_trip_updates_returns_gap_rows() -> None:
+    ts = 1000
+    route_map = {("R", 0): ["A", "B"]}
+    builder = SnapshotFeatureBuilder(route_map)
+    tu = pd.DataFrame(
+        columns=[
+            "snapshot_timestamp",
+            "route_id",
+            "direction_id",
+            "stop_id",
+            "arrival_time",
+            "departure_time",
+            "arrival_delay",
+            "departure_delay",
+            "trip_id",
+            "stop_sequence",
+        ]
+    )
+    vp = pd.DataFrame(columns=["snapshot_timestamp", "stop_id", "direction_id"])
+
+    feats = builder.build_snapshot_features(tu, vp, ts)
+    assert not feats.empty
+    assert set(feats.index) == {("A", 0), ("B", 0)}
+    assert feats["arrival_delay_t"].isna().all()

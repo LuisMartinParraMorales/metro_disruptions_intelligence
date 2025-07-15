@@ -130,7 +130,23 @@ class SnapshotFeatureBuilder:
         )
 
         if trip_updates.empty:
-            return pd.DataFrame()
+            empty_rows = [
+                self._empty_feature_row(
+                    pd.Series({
+                        "snapshot_timestamp": ts,
+                        "route_id": None,
+                        "sin_hour": sin_hour,
+                        "cos_hour": cos_hour,
+                        "day_type": day_type,
+                        "local_dt": local_dt,
+                    }),
+                    key,
+                )
+                for key in self._state
+            ]
+            df = pd.DataFrame(empty_rows)
+            df.set_index(["stop_id", "direction_id"], inplace=True)
+            return df
 
         missing = set(zip(trip_updates["stop_id"], trip_updates["direction_id"])) - set(
             self._state.keys()
