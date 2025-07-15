@@ -25,3 +25,16 @@ def test_empty_dataframe_returns_none(tmp_path: Path) -> None:
 
     assert out is None
     assert not any(tmp_path.rglob("*.parquet"))
+
+
+def test_partition_uses_london_day(tmp_path: Path) -> None:
+    """Ensure partitioning uses London local time."""
+    import pytz
+
+    london = pytz.timezone("Europe/London")
+    ts = int(london.localize(datetime(2025, 6, 4, 0, 30)).timestamp())
+    df = pd.DataFrame({"snapshot_timestamp": [ts], "value": [1]})
+
+    out = write_df_to_partitioned_parquet(df, tmp_path, "myprefix")
+    expected = tmp_path / "year=2025" / "month=06" / "day=04" / "myprefix.parquet"
+    assert out == expected
