@@ -1,4 +1,7 @@
+from pathlib import Path
+
 import pandas as pd
+import pytest
 
 from metro_disruptions_intelligence.features import SnapshotFeatureBuilder
 from metro_disruptions_intelligence.utils_gtfsrt import make_fake_tu, make_fake_vp
@@ -39,6 +42,8 @@ def test_snapshot_non_zero_delay() -> None:
         "sample_data/rt_parquet/trip_updates/year=2025/month=04/day=06/"
         "trip_updates_2025-06-04-13-17.parquet"
     )
+    if not Path(file).exists():
+        pytest.skip("sample parquet not available")
     tu = pd.read_parquet(file)
     vp = pd.read_parquet(file.replace("trip_updates", "vehicle_positions"))
     ts = int(tu["snapshot_timestamp"].iloc[0])
