@@ -77,3 +77,15 @@ def test_empty_trip_updates_returns_gap_rows() -> None:
     assert not feats.empty
     assert set(feats.index) == {("A", 0), ("B", 0)}
     assert feats["arrival_delay_t"].isna().all()
+
+
+def test_empty_vehicle_positions_returns_features() -> None:
+    ts = 1000
+    builder = SnapshotFeatureBuilder({("R", 0): ["STOP"]})
+    tu = make_fake_tu(ts - 10, ts + 30)
+    vp = pd.DataFrame(columns=["snapshot_timestamp", "stop_id", "direction_id"])
+
+    feats = builder.build_snapshot_features(tu, vp, ts)
+
+    assert not feats.empty
+    assert (feats["is_train_present"] == 0).all()
