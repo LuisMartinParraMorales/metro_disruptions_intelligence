@@ -95,12 +95,9 @@ def discover_all_snapshot_minutes(root: Path) -> list[int]:
 def compose_path(ts: int, root: Path, feed: str) -> Path:
     """Construct Parquet path for ``feed`` at ``ts``.
 
-    Returns the existing path if either date format is present.
+    Returns the existing path for the configured day-first filename convention.
     """
     dt = datetime.fromtimestamp(ts, tz=_TZ_LONDON)
 
     base = root / feed / f"year={dt.year:04d}" / f"month={dt.month:02d}" / f"day={dt.day:02d}"
-    path_d = base / _fname(dt, feed, day_first=True)
-    if path_d.exists():
-        return path_d
-    return base / _fname(dt, feed, day_first=False)
+    return base / _fname(dt, feed)

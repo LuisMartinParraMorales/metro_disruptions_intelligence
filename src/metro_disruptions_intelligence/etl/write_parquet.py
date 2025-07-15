@@ -8,6 +8,7 @@ from pathlib import Path
 import pandas as pd
 import pyarrow as pa
 import pyarrow.parquet as pq
+import pytz
 
 
 def write_df_to_partitioned_parquet(
@@ -29,16 +30,19 @@ def write_df_to_partitioned_parquet(
     timestamp_column:
         Column containing UNIX timestamps used for partitioning.
 
-    Returns
+    Returns:
     -------
     Optional[Path]
         Path to the written file or ``None`` if ``df`` was empty.
     """
-
     if df.empty:
         return None
 
-    to_dt = lambda ts: datetime.utcfromtimestamp(int(ts))
+    tz_london = pytz.timezone("Europe/London")
+
+    def to_dt(ts: int) -> datetime:
+        return datetime.fromtimestamp(int(ts), tz_london)
+
     df2 = df.copy()
     df2["year"] = df2[timestamp_column].map(lambda ts: to_dt(ts).year)
     df2["month"] = df2[timestamp_column].map(lambda ts: to_dt(ts).month)

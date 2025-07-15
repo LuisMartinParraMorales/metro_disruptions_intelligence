@@ -16,6 +16,9 @@ from .parse_trip_updates import parse_one_trip_update_file
 from .parse_vehicle_positions import parse_one_vehicle_position_file
 from .write_parquet import write_df_to_partitioned_parquet
 
+# Raw realtime JSON files are named using the day-first format
+# YYYY_DD_MM_HH_MM_SS.  Seconds are always zero but are kept here
+# for completeness.
 FILENAME_RE = re.compile(r"(\d{4})_(\d{2})_(\d{2})_(\d{2})_(\d{2})_(\d{2})\.json")
 
 
@@ -37,13 +40,21 @@ def _file_datetime(path: Path) -> datetime | None:
     m = FILENAME_RE.match(path.name)
     if not m:
         return None
-    yyyy, mm, dd, hh, mi, ss = map(int, m.groups())
+    yyyy, dd, mm, hh, mi, ss = map(int, m.groups())
     return datetime(yyyy, mm, dd, hh, mi, ss)
 
 
 def _parse_cli_time(value: str) -> datetime:
     """Parse a command line datetime string."""
-    for fmt in ("%Y_%m_%d_%H_%M_%S", "%Y-%m-%dT%H:%M:%S", "%Y-%m-%d"):
+    patterns = (
+        "%Y_%d_%m_%H_%M_%S",
+        "%Y_%m_%d_%H_%M_%S",
+        "%Y-%d-%mT%H:%M:%S",
+        "%Y-%m-%dT%H:%M:%S",
+        "%Y-%d-%m",
+        "%Y-%m-%d",
+    )
+    for fmt in patterns:
         try:
             return datetime.strptime(value, fmt)
         except ValueError:
@@ -55,8 +66,9 @@ def _prefix_from_name(path: Path) -> str:
     m = FILENAME_RE.match(path.name)
     if not m:
         return path.stem
-    yyyy, mm, dd, hh, mi, _ = m.groups()
-    return f"{yyyy}-{mm}-{dd}-{hh}-{mi}"
+    yyyy, dd, mm, hh, mi, _ = m.groups()
+    # output filenames follow YYYY-DD-MM-HH-MM
+    return f"{yyyy}-{dd}-{mm}-{hh}-{mi}"
 
 
 def ingest_all_rt(
@@ -153,7 +165,7 @@ def _parse_args(argv: list[str] | None = None) -> IngestRTConfig:
         "--start-time",
         type=str,
         default=None,
-        help="Only ingest files with timestamp >= START_TIME (YYYY-MM-DD or YYYY_MM_DD_HH_MM_SS)",
+        help="Only ingest files with timestamp >= START_TIME (YYYY-DD-MM or YYYY_DD_MM_HH_MM_SS)",
     )
     parser.add_argument(
         "--end-time", type=str, default=None, help="Only ingest files with timestamp <= END_TIME"

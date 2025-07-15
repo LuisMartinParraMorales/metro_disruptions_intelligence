@@ -11,15 +11,13 @@ import pytz
 _TZ_SYDNEY = pytz.timezone("Australia/Sydney")
 _TZ_LONDON = pytz.timezone("Europe/London")
 
-_PATTERNS = (
-    "%Y-%d-%m-%H-%M",  # day-month
-    "%Y-%m-%d-%H-%M",  # month-day
-)
+# Filenames use the day-first convention: YYYY-DD-MM-HH-MM
+_PATTERNS = ("%Y-%d-%m-%H-%M",)
 
 # Constants shared between features and tests
 DELAY_CAP = 300
-LAG_TU_SECS = 180   # trip_updates can now be up to 3 minutes behind
-LAG_VP_SECS = 60    # vehicle_positions can now be up to 1 minute behind
+LAG_TU_SECS = 180  # trip_updates can now be up to 3 minutes behind
+LAG_VP_SECS = 60  # vehicle_positions can now be up to 1 minute behind
 MAX_FUTURE_SECS = 2 * 60 * 60
 MAX_HEADWAY_SECS = 60 * 60
 
@@ -80,9 +78,11 @@ def make_fake_vp(snapshot_ts: int, *, stop_id: str = "STOP", direction_id: int =
     })
 
 
-def _fname(dt: datetime, feed: str, day_first: bool) -> str:
+def _fname(dt: datetime, feed: str, day_first: bool = True) -> str:
     """Return Parquet filename for ``feed`` at ``dt`` in London time."""
-    pat = "%Y-%d-%m-%H-%M" if day_first else "%Y-%m-%d-%H-%M"
+    # ``day_first`` is kept for backward compatibility but ignored; filenames are
+    # always produced using the day-first convention.
+    pat = "%Y-%d-%m-%H-%M"
     local = dt.astimezone(_TZ_LONDON)
     return f"{feed}_{local.strftime(pat)}.parquet"
 

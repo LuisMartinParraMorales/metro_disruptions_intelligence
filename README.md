@@ -84,6 +84,8 @@ the same partition structure:
 data/processed/rt/alerts/year=2025/month=03/day=06/alerts_2025-06-03-16-49.parquet
 ```
 
+Filenames use the day‑first convention `YYYY-DD-MM-HH-MM`.
+
 To load all partitions for analysis, use the helper
 ``load_rt_dataset``:
 
