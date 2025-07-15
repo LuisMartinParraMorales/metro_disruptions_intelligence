@@ -17,6 +17,12 @@ This project builds per-station snapshots for Sydney Metro to detect disruptions
    - network metrics: `node_degree`, `hub_flag`
    - presence indicators: `is_train_present`, `data_fresh_secs`
    A `route_id` column is included only when multiple routes appear in the snapshot.
+
+!!! note
+    If the ``vehicle_positions`` file exists but contains no rows for a given
+    snapshot minute, ``generate-features`` still writes the feature Parquet.
+    In this case ``is_train_present`` will be ``0`` and ``data_fresh_secs`` will
+    show a large value while delay-related features are unaffected.
 7. **Output** – The resulting DataFrame is indexed by `(stop_id, direction_id)` and written to `data/stations_features_time_series/year=YYYY/month=MM/day=DD/stations_feats_YYYY-DD-MM-HH-MM.parquet`.
    Filenames follow the `YYYY-DD-MM-HH-MM` convention.
 
