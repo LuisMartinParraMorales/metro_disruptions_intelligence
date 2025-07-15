@@ -165,10 +165,19 @@ def _parse_args(argv: list[str] | None = None) -> IngestRTConfig:
         "--start-time",
         type=str,
         default=None,
-        help="Only ingest files with timestamp >= START_TIME (YYYY-DD-MM or YYYY_DD_MM_HH_MM_SS)",
+        help=(
+            "Only ingest files with timestamp >= START_TIME. "
+            "Format: YYYY-DD-MM[-HH-MM-SS]; underscores are also accepted."
+        ),
     )
     parser.add_argument(
-        "--end-time", type=str, default=None, help="Only ingest files with timestamp <= END_TIME"
+        "--end-time",
+        type=str,
+        default=None,
+        help=(
+            "Only ingest files with timestamp <= END_TIME. "
+            "Format: YYYY-DD-MM[-HH-MM-SS]; underscores are also accepted."
+        ),
     )
     args = parser.parse_args(argv)
     cfg_dict = vars(args)
