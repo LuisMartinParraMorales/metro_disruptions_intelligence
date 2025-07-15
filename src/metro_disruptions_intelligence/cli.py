@@ -1,5 +1,6 @@
 """Command line entry points for :mod:`metro_disruptions_intelligence`."""
 
+import logging
 from datetime import datetime
 from pathlib import Path
 
@@ -11,6 +12,8 @@ from .etl.ingest_rt import _parse_cli_time, ingest_all_rt, union_all_feeds
 from .etl.static_ingest import ingest_static_gtfs
 from .features import SnapshotFeatureBuilder, build_route_map, write_features
 from .processed_reader import compose_path, discover_all_snapshot_minutes
+
+logger = logging.getLogger(__name__)
 
 
 @click.group()
@@ -97,6 +100,10 @@ def generate_features_cmd(
         tu_file = compose_path(ts, processed_root, "trip_updates")
         vp_file = compose_path(ts, processed_root, "vehicle_positions")
         if not tu_file.exists() or not vp_file.exists():
+            if not tu_file.exists():
+                logger.warning("trip_updates file missing for %s", ts)
+            if not vp_file.exists():
+                logger.warning("vehicle_positions file missing for %s", ts)
             continue
 
         trip_now = pd.read_parquet(tu_file)
