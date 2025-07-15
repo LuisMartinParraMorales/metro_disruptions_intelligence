@@ -27,4 +27,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
+* ``union_all_feeds`` now streams Parquet fragments using ``pyarrow.dataset``
+  instead of loading all partitions into memory.
+
 ### Removed

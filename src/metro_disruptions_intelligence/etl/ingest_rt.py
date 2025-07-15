@@ -8,7 +8,6 @@ import re
 from datetime import datetime
 from pathlib import Path
 
-import pandas as pd
 from pydantic import BaseModel
 
 from .parse_alerts import parse_one_alert_file
@@ -134,18 +133,50 @@ def ingest_all_rt(
 
 
 def union_all_feeds(processed_root: Path, output_parquet: Path) -> Path:
-    """Concatenate all feeds into a single Parquet file."""
-    dfs = []
+    """Concatenate all feeds into a single Parquet file using streaming."""
+    import pyarrow as pa
+    import pyarrow.dataset as ds
+    import pyarrow.parquet as pq
+
+    column_order: list[str] = []
+    column_types: dict[str, pa.DataType] = {}
+    partitioning = ds.partitioning(
+        pa.schema({"year": pa.int64(), "month": pa.int64(), "day": pa.int64()}), flavor="hive"
+    )
+
+    # Discover the full schema in feed order, mimicking pandas concat behaviour
     for feed in FEEDS:
         part_path = processed_root / feed
-        files = list(part_path.rglob("*.parquet"))
-        if not files:
+        if not part_path.exists():
             continue
-        df = pd.concat([pd.read_parquet(f) for f in files], ignore_index=True)
-        df = df.assign(feed_type=feed)
-        dfs.append(df)
-    if dfs:
-        pd.concat(dfs, ignore_index=True).to_parquet(output_parquet, index=False)
+        dataset = ds.dataset(part_path, format="parquet", partitioning=partitioning)
+        for name in dataset.schema.names:
+            if name not in column_order:
+                column_order.append(name)
+                column_types[name] = dataset.schema.field(name).type
+        if "feed_type" not in column_order:
+            column_order.append("feed_type")
+            column_types["feed_type"] = pa.string()
+
+    if not column_order:
+        return output_parquet
+
+    schema = pa.schema([(name, column_types[name]) for name in column_order])
+    writer = pq.ParquetWriter(output_parquet, schema)
+
+    for feed in FEEDS:
+        part_path = processed_root / feed
+        if not part_path.exists():
+            continue
+        dataset = ds.dataset(part_path, format="parquet", partitioning=partitioning)
+        for fragment in dataset.get_fragments():
+            table = fragment.to_table()
+            df = table.to_pandas()
+            df["feed_type"] = feed
+            df = df.reindex(columns=column_order)
+            writer.write_table(pa.Table.from_pandas(df, schema=schema, preserve_index=False))
+
+    writer.close()
     return output_parquet
 
 
