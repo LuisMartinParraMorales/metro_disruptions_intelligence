@@ -88,7 +88,12 @@ def _fname(dt: datetime, feed: str, day_first: bool = True) -> str:
 
 
 def try_parse(ts_part: str, year: int, month: int, day: int) -> datetime | None:
-    """Parse ``ts_part`` using both patterns, validating against partition date."""
+    """Parse ``ts_part`` in the format ``YYYY-DD-MM-HH-MM``.
+
+    ``ts_part`` is validated against the provided ``year``, ``month`` and
+    ``day`` values. A timezone-aware UTC ``datetime`` is returned if the parsed
+    timestamp matches the partition date; otherwise ``None`` is returned.
+    """
     for pat in _PATTERNS:
         try:
             naive = datetime.strptime(ts_part, pat)
