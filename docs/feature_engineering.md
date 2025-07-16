@@ -2,7 +2,7 @@
 
 This project builds per-station snapshots for Sydney Metro to detect disruptions using an IsolationForest model. The main steps are:
 
-1. **Realtime ingestion** – Raw GTFS-Realtime JSON files are converted to partitioned Parquet datasets (`trip_updates`, `vehicle_positions`, `alerts`). Each file contains one minute of data with second resolution.
+1. **Realtime ingestion** – Raw GTFS-Realtime JSON files are converted to partitioned Parquet datasets (`trip_updates`, `vehicle_positions`, `alerts`). Each file contains one minute of data with second resolution. The feed header ``timestamp`` defines the snapshot time. Even if the ``entity`` list is empty the ``ingest-rt`` tool still writes a Parquet file with the full schema so that downstream processing yields feature rows with ``is_train_present = 0``.
 2. **Route discovery** – On first run we inspect the TripUpdate data to build `route_dir_to_stops`, a mapping from `(route_id, direction_id)` to the ordered list of stops. This allows calculation of upstream and downstream delay windows.
 3. **Graph metrics** – The stop graph derived from `route_dir_to_stops` yields `node_degree` and the `hub_flag` (1 if a stop is in the 90‑th percentile of degree).
 4. **Snapshot feature generation** – For every snapshot minute we call `SnapshotFeatureBuilder.build_snapshot_features`. Input TripUpdates and VehiclePositions are filtered to tolerate up to 180 s and 60 s of latency respectively. Forecasts more than two hours in the future are ignored. TripUpdates falling inside the dynamic future window are sorted by proximity to the snapshot timestamp and the closest one per (stop, direction) is used. The size of this window adjusts based on the 95‑th percentile of observed arrival-time differences.
