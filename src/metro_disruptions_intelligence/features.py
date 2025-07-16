@@ -428,10 +428,17 @@ def build_route_map(processed_root: Path) -> dict[tuple[str, int], list[str]]:
     by ``stop_sequence``.
     """
     files = (processed_root / "trip_updates").rglob("trip_updates_*.parquet")
-    frames = [
-        pd.read_parquet(f, columns=["route_id", "direction_id", "stop_id", "stop_sequence"])
-        for f in files
-    ]
+    cols = ["route_id", "direction_id", "stop_id", "stop_sequence"]
+    frames: list[pd.DataFrame] = []
+    for f in files:
+        try:
+            df = pd.read_parquet(f, columns=cols)
+        except Exception as exc:  # pragma: no cover - logging
+            logger.debug("Skipping %s: %s", f, exc)
+            continue
+        if df.empty or not set(cols).issubset(df.columns):
+            continue
+        frames.append(df)
     if not frames:
         raise FileNotFoundError("No trip_updates*.parquet snapshots found")
     df = pd.concat(frames, ignore_index=True)
