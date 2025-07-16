@@ -25,6 +25,9 @@ class AlertRow(BaseModel):
     url: Optional[str] = None
 
 
+ALERT_COLUMNS = list(AlertRow.__fields__.keys())
+
+
 def parse_one_alert_file(json_path: Path) -> pd.DataFrame:
     """Return a DataFrame of alerts contained in ``json_path``."""
     raw = json.loads(json_path.read_text())
@@ -59,4 +62,4 @@ def parse_one_alert_file(json_path: Path) -> pd.DataFrame:
                     ),
                 )
                 rows.append(row.dict())
-    return pd.DataFrame(rows)
+    return pd.DataFrame(rows, columns=ALERT_COLUMNS)

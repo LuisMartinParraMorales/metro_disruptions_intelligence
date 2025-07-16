@@ -23,7 +23,7 @@ def test_march_delay_non_null() -> None:
         pytest.skip("sample parquet files not available", allow_module_level=True)
     file = Path(
         "sample_data/rt_parquet/trip_updates/year=2025/month=03/day=06/"
-        "trip_updates_2025-06-03-16-49.parquet"
+        "trip_updates_2025-06-03-16-50.parquet"
     )
     df = pd.read_parquet(file)
     assert df["arrival_delay"].notna().mean() >= 0.95

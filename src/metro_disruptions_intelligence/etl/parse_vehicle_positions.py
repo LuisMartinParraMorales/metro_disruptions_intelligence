@@ -27,6 +27,9 @@ class VehiclePositionRow(BaseModel):
     occupancy_status: Optional[str] = None
 
 
+VEHICLE_POSITION_COLUMNS = list(VehiclePositionRow.__fields__.keys())
+
+
 def parse_one_vehicle_position_file(json_path: Path) -> pd.DataFrame:
     """Return a DataFrame of vehicle positions contained in ``json_path``."""
     raw = json.loads(json_path.read_text())
@@ -49,10 +52,16 @@ def parse_one_vehicle_position_file(json_path: Path) -> pd.DataFrame:
             bearing=pos.get("bearing"),
             speed=pos.get("speed"),
             current_stop_sequence=veh.get("current_stop_sequence"),
-            current_status=str(veh["current_status"]) if veh.get("current_status") is not None else None,
+            current_status=str(veh["current_status"])
+            if veh.get("current_status") is not None
+            else None,
             stop_id=veh.get("stop_id"),
-            congestion_level=str(veh["congestion_level"]) if veh.get("congestion_level") is not None else None,
-            occupancy_status=str(veh["occupancy_status"]) if veh.get("occupancy_status") is not None else None,
+            congestion_level=str(veh["congestion_level"])
+            if veh.get("congestion_level") is not None
+            else None,
+            occupancy_status=str(veh["occupancy_status"])
+            if veh.get("occupancy_status") is not None
+            else None,
         )
         rows.append(row.dict())
-    return pd.DataFrame(rows)
+    return pd.DataFrame(rows, columns=VEHICLE_POSITION_COLUMNS)
