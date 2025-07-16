@@ -125,6 +125,11 @@ class SnapshotFeatureBuilder:
         local_dt = sydney_time(ts)
         sin_hour, cos_hour, day_type = self._time_features(ts)
 
+        if "snapshot_timestamp" not in trip_updates.columns:
+            raise KeyError("'snapshot_timestamp' column missing from trip_updates")
+        if "snapshot_timestamp" not in vehicles.columns:
+            raise KeyError("'snapshot_timestamp' column missing from vehicle_positions")
+
         logger.debug(
             "ts=%s \u2192 total TUs=%d", local_dt.strftime("%Y-%m-%d %H:%M"), len(trip_updates)
         )
