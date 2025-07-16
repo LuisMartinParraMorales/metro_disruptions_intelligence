@@ -27,6 +27,9 @@ class TripUpdateRow(BaseModel):
     departure_delay: int | None = None
 
 
+TRIP_UPDATE_COLUMNS = list(TripUpdateRow.__fields__.keys())
+
+
 def parse_one_trip_update_file(json_path: Path) -> pd.DataFrame:
     """Return all stop time updates contained in ``json_path``."""
     raw = json.loads(json_path.read_text())
@@ -55,4 +58,4 @@ def parse_one_trip_update_file(json_path: Path) -> pd.DataFrame:
                 departure_delay=float(stu.get("departure", {}).get("delay", 0.0) or 0.0),
             )
             rows.append(row.dict())
-    return pd.DataFrame(rows)
+    return pd.DataFrame(rows, columns=TRIP_UPDATE_COLUMNS)
