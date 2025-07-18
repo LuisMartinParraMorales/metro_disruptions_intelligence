@@ -11,6 +11,9 @@ import pandas as pd
 
 from .utils_gtfsrt import CONSTANTS, is_new_service_day, sydney_time
 
+# Sydney Metro stop_ids for Central station
+CENTRAL_STOP_IDS = {"2000466", "2000467", "200060"}
+
 logger = logging.getLogger(__name__)
 
 
@@ -113,6 +116,9 @@ class SnapshotFeatureBuilder:
             "day_type": row["day_type"],
             "node_degree": self.node_degree.get(key[0], 0),
             "hub_flag": self.hub_flag.get(key[0], 0),
+            "congestion_level": np.nan,
+            "occupancy_status": np.nan,
+            "central_flag": int(key[0] in CENTRAL_STOP_IDS),
             "is_train_present": 0,
             "data_fresh_secs": np.nan,
             "local_dt": row["local_dt"],
@@ -354,9 +360,18 @@ class SnapshotFeatureBuilder:
                 (vp_recent["stop_id"] == row["stop_id"])
                 & (vp_recent["direction_id"] == row["direction_id"])
             ]
+            congestion_level = np.nan
+            occupancy_status = np.nan
             if not veh_now.empty:
                 is_present = 1
                 data_fresh = ts - int(veh_now["snapshot_timestamp"].max())
+                latest_vp = veh_now.sort_values("snapshot_timestamp").iloc[-1]
+                congestion_level = pd.to_numeric(
+                    latest_vp.get("congestion_level"), errors="coerce"
+                )
+                occupancy_status = pd.to_numeric(
+                    latest_vp.get("occupancy_status"), errors="coerce"
+                )
             elif state.last_vehicle_ts is not None:
                 data_fresh = min(ts - int(state.last_vehicle_ts), self.MAX_DATA_FRESH_SECS)
             data_fresh = min(data_fresh, self.MAX_DATA_FRESH_SECS)
@@ -383,6 +398,9 @@ class SnapshotFeatureBuilder:
                 "day_type": day_type,
                 "node_degree": self.node_degree.get(row["stop_id"], 0),
                 "hub_flag": self.hub_flag.get(row["stop_id"], 0),
+                "congestion_level": congestion_level,
+                "occupancy_status": occupancy_status,
+                "central_flag": int(row["stop_id"] in CENTRAL_STOP_IDS),
                 "is_train_present": is_present,
                 "data_fresh_secs": data_fresh,
                 "local_dt": local_dt,
