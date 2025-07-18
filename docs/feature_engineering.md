@@ -14,7 +14,8 @@ This project builds per-station snapshots for Sydney Metro to detect disruptions
    - `upstream_delay_mean_2`, `downstream_delay_max_2`
    - rolling statistics: `delay_mean_5`, `delay_std_5`, `delay_mean_15`, `headway_p90_60`
    - time features: `sin_hour`, `cos_hour`, `day_type`
-   - network metrics: `node_degree`, `hub_flag`
+   - network metrics: `node_degree`, `hub_flag`, `central_flag`
+   - vehicle metrics: `congestion_level`, `occupancy_status`
    - presence indicators: `is_train_present`, `data_fresh_secs`
    A `route_id` column is included only when multiple routes appear in the snapshot.
 
