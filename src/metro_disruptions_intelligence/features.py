@@ -12,7 +12,17 @@ import pandas as pd
 from .utils_gtfsrt import CONSTANTS, is_new_service_day, sydney_time
 
 # Sydney Metro stop_ids for Central station
-CENTRAL_STOP_IDS = {"2000466", "2000467", "200060"}
+CENTRAL_STOP_IDS = {
+    "2000466",
+    "2000467",
+    "200060",
+    "2065163",
+    "2060115",
+    "2000460",
+    "2000463",
+    "2000464",
+    "2017078",
+}
 
 logger = logging.getLogger(__name__)
 

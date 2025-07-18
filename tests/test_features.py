@@ -25,7 +25,7 @@ def test_build_snapshot_features() -> None:
     assert not feats.empty
     assert isinstance(feats.index, pd.MultiIndex)
     assert {"congestion_level", "occupancy_status", "central_flag"}.issubset(feats.columns)
-    assert feats.loc[("2000466", 0), "central_flag"] == 1
+    assert feats.loc[("2065163", 1), "central_flag"] == 1
 
 
 def test_headway_bounds() -> None:
