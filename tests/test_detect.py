@@ -1,7 +1,12 @@
+from datetime import datetime
 from pathlib import Path
 
 import pandas as pd
+import pytz
+import yaml
+from click.testing import CliRunner
 
+from metro_disruptions_intelligence import cli
 from metro_disruptions_intelligence.detect.streaming_iforest import (
     IForestConfig,
     StreamingIForestDetector,
@@ -71,3 +76,79 @@ def test_save_load_roundtrip(tmp_path: Path) -> None:
     out1 = det.score_and_update(df2)
     out2 = det2.score_and_update(df2)
     pd.testing.assert_frame_equal(out1, out2)
+
+
+def test_detect_anomalies_help() -> None:
+    runner = CliRunner()
+    result = runner.invoke(cli.cli, ["detect-anomalies", "--help"])
+    assert result.exit_code == 0
+    assert "--processed-root" in result.output
+
+
+def test_tune_iforest_help() -> None:
+    runner = CliRunner()
+    result = runner.invoke(cli.cli, ["tune-iforest", "--help"])
+    assert result.exit_code == 0
+    assert "--processed-root" in result.output
+
+
+def test_tune_iforest_runs(tmp_path: Path) -> None:
+    runner = CliRunner()
+    with runner.isolated_filesystem():
+        processed_root = Path("features")
+        start_ts = 0
+        for ts in range(start_ts, start_ts + 300, 60):
+            df = make_df(ts, ["S"])
+            dt = datetime.fromtimestamp(ts, tz=pytz.UTC)
+            out_dir = (
+                processed_root
+                / f"year={dt.year:04d}"
+                / f"month={dt.month:02d}"
+                / f"day={dt.day:02d}"
+            )
+            out_dir.mkdir(parents=True, exist_ok=True)
+            out_file = out_dir / f"stations_feats_{dt:%Y-%d-%m-%H-%M}.parquet"
+            df.to_parquet(out_file, index=False)
+
+        grid_yaml = Path("grid.yaml")
+        grid_yaml.write_text(
+            """\
+n_trees: [10]
+height: [8]
+subsample_size: [8]
+window_size: [5]
+threshold_quantile: [0.97]
+"""
+        )
+
+        start = datetime.utcfromtimestamp(start_ts).isoformat()
+        end = datetime.utcfromtimestamp(start_ts + 300).isoformat()
+        result = runner.invoke(
+            cli.cli,
+            [
+                "tune-iforest",
+                "--processed-root",
+                str(processed_root),
+                "--config",
+                str(grid_yaml),
+                "--start",
+                start,
+                "--end",
+                end,
+            ],
+        )
+        assert result.exit_code == 0
+        res_file = Path("data/working_data/tuning_results.csv")
+        assert res_file.exists()
+        assert pd.read_csv(res_file).shape[0] > 0
+        best_file = Path("iforest_best.yaml")
+        assert best_file.exists()
+        with open(best_file, encoding="utf-8") as f:
+            best = yaml.safe_load(f)
+        assert {
+            "n_trees",
+            "height",
+            "subsample_size",
+            "window_size",
+            "threshold_quantile",
+        }.issubset(best.keys())
