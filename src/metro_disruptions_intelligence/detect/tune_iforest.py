@@ -35,7 +35,9 @@ def _snapshot_path(root: Path, ts: int) -> Path:
     )
 
 
-def _score_range(root: Path, config: dict | str | Path, start: datetime, end: datetime) -> pd.DataFrame:
+def _score_range(
+    root: Path, config: dict | str | Path, start: datetime, end: datetime
+) -> pd.DataFrame:
     det = StreamingIForestDetector(config)
     start_ts = int(start.timestamp())
     end_ts = int(end.timestamp())
@@ -94,7 +96,10 @@ def run_grid_search(
             scores = pd.read_parquet(cache_file)
         else:
             scores = _score_range(processed_root, params, start, end)
-            scores.to_parquet(cache_file, index=False)
+            if not scores.empty:
+                scores.to_parquet(cache_file, index=False)
+        if scores.empty:
+            continue
         auc, prec = _evaluate(scores)
         rows.append({**params, "lead_time_roc_auc": auc, "precision_at_k": prec})
 
@@ -102,15 +107,18 @@ def run_grid_search(
     results_csv.parent.mkdir(parents=True, exist_ok=True)
     df.to_csv(results_csv, index=False)
 
-    if not df.empty:
-        best = df.sort_values("lead_time_roc_auc", ascending=False).iloc[0]
+    if df.empty:
+        logger.warning("No feature files found for the specified range")
+        return df
 
-        def _py(v: object) -> object:
-            if isinstance(v, (np.floating, np.integer)):
-                return v.item()
-            return v
+    best = df.sort_values("lead_time_roc_auc", ascending=False).iloc[0]
 
-        best_params = {k: _py(best[k]) for k in keys}
-        with open(best_yaml, "w", encoding="utf-8") as f:
-            yaml.safe_dump(best_params, f)
+    def _py(v: object) -> object:
+        if isinstance(v, (np.floating, np.integer)):
+            return v.item()
+        return v
+
+    best_params = {k: _py(best[k]) for k in keys}
+    with open(best_yaml, "w", encoding="utf-8") as f:
+        yaml.safe_dump(best_params, f)
     return df

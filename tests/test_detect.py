@@ -152,3 +152,41 @@ threshold_quantile: [0.97]
             "window_size",
             "threshold_quantile",
         }.issubset(best.keys())
+
+
+def test_tune_iforest_warns_no_data() -> None:
+    runner = CliRunner()
+    with runner.isolated_filesystem():
+        processed_root = Path("features")
+        processed_root.mkdir(parents=True, exist_ok=True)
+
+        grid_yaml = Path("grid.yaml")
+        grid_yaml.write_text(
+            """\
+n_trees: [10]
+height: [8]
+subsample_size: [8]
+window_size: [5]
+threshold_quantile: [0.97]
+"""
+        )
+
+        start = datetime.utcfromtimestamp(0).isoformat()
+        end = datetime.utcfromtimestamp(60).isoformat()
+        result = runner.invoke(
+            cli.cli,
+            [
+                "tune-iforest",
+                "--processed-root",
+                str(processed_root),
+                "--config",
+                str(grid_yaml),
+                "--start",
+                start,
+                "--end",
+                end,
+            ],
+        )
+        assert result.exit_code == 0
+        assert "No feature files found for the specified range" in result.output
+        assert not Path("iforest_best.yaml").exists()
