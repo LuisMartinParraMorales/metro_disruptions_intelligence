@@ -137,11 +137,7 @@ def generate_features_cmd(
 @click.option("--start", "start_time", required=True, type=str)
 @click.option("--end", "end_time", required=True, type=str)
 def detect_anomalies_cmd(
-    processed_root: Path,
-    out_root: Path,
-    config_path: Path | None,
-    start_time: str,
-    end_time: str,
+    processed_root: Path, out_root: Path, config_path: Path | None, start_time: str, end_time: str
 ) -> None:
     """Stream feature snapshots and score anomalies."""
     start_dt = _parse_cli_time(start_time)
@@ -174,19 +170,12 @@ def detect_anomalies_cmd(
         total += 1
         anomalies += int(out["anomaly_flag"].sum())
         mean_accum += float(out["anomaly_score"].mean())
-        out_dir = (
-            out_root
-            / f"year={dt.year:04d}"
-            / f"month={dt.month:02d}"
-            / f"day={dt.day:02d}"
-        )
+        out_dir = out_root / f"year={dt.year:04d}" / f"month={dt.month:02d}" / f"day={dt.day:02d}"
         out_dir.mkdir(parents=True, exist_ok=True)
         out_file = out_dir / f"anomaly_scores_{dt:%Y-%d-%m-%H-%M}.parquet"
         out.to_parquet(out_file, index=False)
     mean_score = mean_accum / total if total else 0.0
-    click.echo(
-        f"Processed {total} snapshots | anomalies {anomalies} | mean_score {mean_score:.4f}"
-    )
+    click.echo(f"Processed {total} snapshots | anomalies {anomalies} | mean_score {mean_score:.4f}")
 
 
 @cli.command("tune-iforest")
@@ -200,16 +189,11 @@ def detect_anomalies_cmd(
 )
 @click.option("--start", "start_time", required=True, type=str)
 @click.option("--end", "end_time", required=True, type=str)
-def tune_iforest_cmd(
-    processed_root: Path,
-    grid_yaml: Path,
-    start_time: str,
-    end_time: str,
-) -> None:
+def tune_iforest_cmd(processed_root: Path, grid_yaml: Path, start_time: str, end_time: str) -> None:
     """Grid search hyper-parameters for StreamingIForestDetector."""
     start_dt = _parse_cli_time(start_time)
     end_dt = _parse_cli_time(end_time)
-    run_grid_search(
+    df = run_grid_search(
         processed_root,
         grid_yaml,
         start_dt,
@@ -218,3 +202,5 @@ def tune_iforest_cmd(
         results_csv=Path("data/working_data/tuning_results.csv"),
         best_yaml=Path("iforest_best.yaml"),
     )
+    if df.empty:
+        click.echo("No feature files found for the specified range", err=True)
