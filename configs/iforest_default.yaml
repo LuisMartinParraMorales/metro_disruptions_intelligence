@@ -1,0 +1,6 @@
+n_trees: 100
+height: 10
+subsample_size: 256
+window_size: 10000
+threshold_quantile: 0.97
+warmup_days: 4
