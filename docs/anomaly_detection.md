@@ -68,3 +68,39 @@ A grid of 16 parameter combinations is explored serially. Scores are cached to a
 ## Notes on data
 
 Temporary stations are excluded from training and evaluation to avoid short‑term construction noise.
+
+## Example: scoring a time range
+
+Feature snapshots are saved under `data/stations_features_time_series` in day-based partitions:
+
+```
+data/stations_features_time_series/year=YYYY/month=MM/day=DD/stations_feats_YYYY-DD-MM-HH-MM.parquet
+```
+
+The snippet below streams two hours of feature files and returns anomaly scores.
+
+```python
+from pathlib import Path
+from datetime import datetime, timedelta
+import pandas as pd
+from metro_disruptions_intelligence.detect.streaming_iforest import StreamingIForestDetector
+
+processed_root = Path("data/stations_features_time_series")
+start = datetime(2023, 5, 1, 0, 0)
+end = start + timedelta(hours=2)
+rows = []
+det = StreamingIForestDetector("configs/iforest_default.yaml")
+for ts in range(int(start.timestamp()), int(end.timestamp()), 60):
+    dt = datetime.fromtimestamp(ts)
+    f = (
+        processed_root / f"year={dt.year:04d}" / f"month={dt.month:02d}" /
+        f"day={dt.day:02d}" / f"stations_feats_{dt:%Y-%d-%m-%H-%M}.parquet"
+    )
+    if not f.exists():
+        continue
+    df = pd.read_parquet(f)
+    rows.append(det.score_and_update(df, explain=True))
+
+scores = pd.concat(rows, ignore_index=True)
+```
+
