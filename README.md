@@ -138,3 +138,12 @@ You will need explicit permission from the repository owner to redistribute or m
 ## Credits
 
 This package was created with [Cookiecutter](https://github.com/audreyr/cookiecutter) and the [arup-group/cookiecutter-pypackage](https://github.com/arup-group/cookiecutter-pypackage) project template.
+
+## 🚦 Anomaly detection
+
+Metro disruptions intelligence can flag unusual station activity using an online Isolation Forest model. The detector streams snapshot features and returns anomaly scores as soon as new data arrives.
+
+```bash
+poetry run mdi detect-anomalies --help
+poetry run mdi tune-iforest --help
+```
