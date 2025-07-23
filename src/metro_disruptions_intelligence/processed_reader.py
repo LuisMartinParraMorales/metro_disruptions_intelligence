@@ -6,6 +6,7 @@ import logging
 from datetime import datetime
 from pathlib import Path
 from typing import Iterable
+from typing import Optional
 
 import pandas as pd
 import pytz
@@ -93,7 +94,7 @@ def discover_all_snapshot_minutes(root: Path) -> list[int]:
 
 
 def compose_path(ts: int, root: Path, feed: str) -> Path:
-    """Construct Parquet path for ``feed`` at ``ts``.
+    """Construct Parquet path for feed at ts.
 
     Returns the existing path for the configured day-first filename convention.
     """
