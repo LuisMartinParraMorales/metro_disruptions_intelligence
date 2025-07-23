@@ -102,8 +102,7 @@ ignore-overlong-task-comments = true
 skip = "tests/*.py,AUTHORS.md,notebooks/*.ipynb"
 count = ""
 quiet-level = 3
-# Uncomment and add words that are false flags as a comma delimited string
-# ignore-words-list = ""
+ignore-words-list = "fpr"
 
 [tool.setuptools.packages.find]
 include = ["metro_disruptions_intelligence*"]

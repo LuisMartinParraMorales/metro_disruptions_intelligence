@@ -33,6 +33,8 @@ The raw feature files are sanitised before scoring:
 2. rows with `stop_id` in `{204472, 2155270}` are removed
 3. snapshots where all numeric features are `0` are dropped
 4. scaling is currently disabled (`MinMaxScaler` placeholder is commented out)
+5. features `dwell_delta_t` and `data_fresh_secs` are dropped
+6. only a selected list of station IDs is analysed
 
 ## Algorithm
 
@@ -50,16 +52,17 @@ data/anomaly_scores/year=YYYY/month=MM/day=DD/anomaly_scores_YYYY-DD-MM-HH-MM.pa
 | `height` | 8 – 10 |
 | `subsample_size` | 128 – 256 |
 | `window_size` | 5 000 – 10 000 |
-| `threshold_quantile` | 0.97 – 0.98 |
+| `threshold_quantile` | 0.99 |
 | `warmup_days` | fixed 4 |
 
 ## Evaluation metrics
 
 We evaluate using these metrics:
 
-- **lead‑time ROC‑AUC** – primary score
-- **precision@k** – secondary measure
-- recall
+- lead‑time ROC‑AUC – primary score
+- precision@k – secondary measure
+- mean time to detection (MTTD)
+- false positive rate (FPR)
 
 ## Tuning procedure
 
@@ -73,7 +76,7 @@ Temporary stations are excluded from training and evaluation to avoid short‑te
 
 Feature snapshots are saved under `data/stations_features_time_series` in day-based partitions:
 
-```
+```text
 data/stations_features_time_series/year=YYYY/month=MM/day=DD/stations_feats_YYYY-DD-MM-HH-MM.parquet
 ```
 
@@ -99,8 +102,24 @@ for ts in range(int(start.timestamp()), int(end.timestamp()), 60):
     if not f.exists():
         continue
     df = pd.read_parquet(f)
-    rows.append(det.score_and_update(df, explain=True))
+rows.append(det.score_and_update(df, explain=True))
 
 scores = pd.concat(rows, ignore_index=True)
+
 ```
 
+## Evaluating alerts
+
+The `evaluation` helpers compute detection metrics against the alerts feed.
+
+```python
+from metro_disruptions_intelligence.processed_reader import load_rt_dataset
+from metro_disruptions_intelligence.evaluation import build_events, evaluate_scores
+
+alerts = load_rt_dataset(Path("data/processed/rt"), feeds=["alerts"])
+events = build_events(alerts)
+metrics = evaluate_scores(scores, events)
+
+```
+
+The resulting dictionary contains the ROC‑AUC, precision@k, mean time to detection and false positive rate.
