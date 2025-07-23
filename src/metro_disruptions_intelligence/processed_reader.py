@@ -83,14 +83,19 @@ def load_rt_dataset(
     return result
 
 
-def discover_all_snapshot_minutes(root: Path) -> list[int]:
-    """Return epoch-seconds for every snapshot minute present on disk."""
+def discover_snapshot_minutes(root: Path, feed: str = "trip_updates") -> list[int]:
+    """Return epoch seconds for every snapshot minute for ``feed``."""
     minutes: list[int] = []
-    for f in (root / "trip_updates").rglob("trip_updates_*.parquet"):
+    for f in (root / feed).rglob(f"{feed}_*.parquet"):
         dt = _try_parse(f)
         if dt:
             minutes.append(int(dt.timestamp()))
     return sorted(set(minutes))
+
+
+def discover_all_snapshot_minutes(root: Path) -> list[int]:
+    """Return epoch-seconds for every ``trip_updates`` snapshot minute."""
+    return discover_snapshot_minutes(root, "trip_updates")
 
 
 def compose_path(ts: int, root: Path, feed: str) -> Path:
