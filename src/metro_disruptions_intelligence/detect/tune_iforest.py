@@ -38,7 +38,7 @@ def _snapshot_path(root: Path, ts: int) -> Path:
 def _score_range(
     root: Path, config: dict | str | Path, start: datetime, end: datetime
 ) -> pd.DataFrame:
-    det = StreamingIForestDetector(config)
+    det = StreamingIForestDetector(config, drop_features=["data_fresh_secs", "dwell_delta_t"])
     start_ts = int(start.timestamp())
     end_ts = int(end.timestamp())
     rows: list[pd.DataFrame] = []

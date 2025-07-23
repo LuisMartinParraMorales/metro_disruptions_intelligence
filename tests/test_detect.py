@@ -27,15 +27,15 @@ def make_df(ts: int, stop_ids: list[str]) -> pd.DataFrame:
     return pd.DataFrame(data)
 
 
-def test_filter_bad_stops() -> None:
-    det = StreamingIForestDetector(IForestConfig())
-    df = make_df(0, ["1", "204472", "2"])
+def test_filter_to_station_ids() -> None:
+    det = StreamingIForestDetector(IForestConfig(), station_ids=["1"])
+    df = make_df(0, ["1", "2"])
     out = det.score_and_update(df)
-    assert set(out["stop_id"]) == {"1", "2"}
+    assert set(out["stop_id"]) == {"1"}
 
 
 def test_all_zero_skipped() -> None:
-    det = StreamingIForestDetector(IForestConfig())
+    det = StreamingIForestDetector(IForestConfig(), station_ids=["1"])
     df = make_df(0, ["1"])
     df.loc[:, ["node_degree", "hub_flag", "central_flag", "congestion_level", "occupancy"]] = 0
     out = det.score_and_update(df)
@@ -44,7 +44,7 @@ def test_all_zero_skipped() -> None:
 
 def test_warmup_no_alerts() -> None:
     cfg = IForestConfig(window_size=10)
-    det = StreamingIForestDetector(cfg)
+    det = StreamingIForestDetector(cfg, station_ids=["1"])
     df = make_df(0, ["1"] * 10)
     out = det.score_and_update(df)
     assert out["anomaly_flag"].sum() == 0
@@ -52,7 +52,7 @@ def test_warmup_no_alerts() -> None:
 
 def test_service_day_reset() -> None:
     cfg = IForestConfig(window_size=5)
-    det = StreamingIForestDetector(cfg)
+    det = StreamingIForestDetector(cfg, station_ids=["1"])
     df1 = make_df(1714665600, ["1"])  # 2024-05-03 02:00 UTC -> 12:00 Sydney
     det.score_and_update(df1)
     assert det.n_obs == 1
@@ -66,7 +66,7 @@ def test_service_day_reset() -> None:
 
 def test_save_load_roundtrip(tmp_path: Path) -> None:
     cfg = IForestConfig(window_size=5)
-    det = StreamingIForestDetector(cfg)
+    det = StreamingIForestDetector(cfg, station_ids=["1"])
     df = make_df(0, ["1"])
     det.score_and_update(df)
     p = tmp_path / "model.pkl"
@@ -92,7 +92,11 @@ def test_tune_iforest_help() -> None:
     assert "--processed-root" in result.output
 
 
-def test_tune_iforest_runs(tmp_path: Path) -> None:
+def test_tune_iforest_runs(tmp_path: Path, monkeypatch) -> None:
+    from metro_disruptions_intelligence.detect import streaming_iforest
+
+    monkeypatch.setattr(streaming_iforest, "DEFAULT_STATIONS", {"S"})
+
     runner = CliRunner()
     with runner.isolated_filesystem():
         processed_root = Path("features")
@@ -154,7 +158,11 @@ threshold_quantile: [0.97]
         }.issubset(best.keys())
 
 
-def test_tune_iforest_warns_no_data() -> None:
+def test_tune_iforest_warns_no_data(monkeypatch) -> None:
+    from metro_disruptions_intelligence.detect import streaming_iforest
+
+    monkeypatch.setattr(streaming_iforest, "DEFAULT_STATIONS", {"S"})
+
     runner = CliRunner()
     with runner.isolated_filesystem():
         processed_root = Path("features")
