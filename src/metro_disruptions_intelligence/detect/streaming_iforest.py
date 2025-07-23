@@ -19,7 +19,30 @@ from .shap_utils import top_n_tree_shap
 
 logger = logging.getLogger(__name__)
 
-BAD_STOP_IDS = {"204472", "2155270"}
+# Stations included in the real-time detector. All other stops are ignored.
+DEFAULT_STATIONS = {
+    "2155269",
+    "2155267",
+    "2155265",
+    "2153402",
+    "2153404",
+    "2154264",
+    "2154262",
+    "2126159",
+    "2121225",
+    "2113351",
+    "2113341",
+    "2113361",
+    "2067142",
+    "2065163",
+    "2060115",
+    "2000460",
+    "2000463",
+    "2000464",
+    "2000467",
+    "2017078",
+    "204471",
+}
 
 
 @dataclass
@@ -53,7 +76,7 @@ class StreamingIForestDetector:
         else:
             self.config = config
 
-        self.station_ids = {str(s) for s in station_ids} if station_ids else None
+        self.station_ids = {str(s) for s in station_ids} if station_ids else DEFAULT_STATIONS
         self.drop_features = set(drop_features or [])
 
         self._build_pipeline()
@@ -116,9 +139,7 @@ class StreamingIForestDetector:
         self._maybe_reset(ts)
 
         df = df_minute.copy()
-        df = df[~df["stop_id"].astype(str).isin(BAD_STOP_IDS)]
-        if self.station_ids is not None:
-            df = df[df["stop_id"].astype(str).isin(self.station_ids)]
+        df = df[df["stop_id"].astype(str).isin(self.station_ids)]
         df = df.drop(columns=[c for c in self.drop_features if c in df.columns], errors="ignore")
         df.fillna(0, inplace=True)
         numeric_cols = df.select_dtypes(include=[np.number]).columns.tolist()

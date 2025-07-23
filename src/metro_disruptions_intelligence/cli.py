@@ -143,7 +143,7 @@ def detect_anomalies_cmd(
     start_dt = _parse_cli_time(start_time)
     end_dt = _parse_cli_time(end_time)
     config = config_path if config_path else {}
-    det = StreamingIForestDetector(config)
+    det = StreamingIForestDetector(config, drop_features=["data_fresh_secs", "dwell_delta_t"])
 
     total = 0
     anomalies = 0
