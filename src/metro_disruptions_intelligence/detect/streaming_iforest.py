@@ -37,7 +37,13 @@ class IForestConfig:
 class StreamingIForestDetector:
     """Online anomaly detector based on Half-Space Trees."""
 
-    def __init__(self, config: IForestConfig | dict | str | Path) -> None:
+    def __init__(
+        self,
+        config: IForestConfig | dict | str | Path,
+        *,
+        station_ids: list[str] | None = None,
+        drop_features: list[str] | None = None,
+    ) -> None:
         """Initialise the detector with ``config``."""
         if isinstance(config, (str, Path)):
             cfg_dict = self._load_yaml(Path(config))
@@ -46,6 +52,9 @@ class StreamingIForestDetector:
             self.config = IForestConfig(**config)
         else:
             self.config = config
+
+        self.station_ids = {str(s) for s in station_ids} if station_ids else None
+        self.drop_features = set(drop_features or [])
 
         self._build_pipeline()
         self.scores: deque[float] = deque(maxlen=self.config.window_size)
@@ -108,6 +117,9 @@ class StreamingIForestDetector:
 
         df = df_minute.copy()
         df = df[~df["stop_id"].astype(str).isin(BAD_STOP_IDS)]
+        if self.station_ids is not None:
+            df = df[df["stop_id"].astype(str).isin(self.station_ids)]
+        df = df.drop(columns=[c for c in self.drop_features if c in df.columns], errors="ignore")
         df.fillna(0, inplace=True)
         numeric_cols = df.select_dtypes(include=[np.number]).columns.tolist()
         df = df[(df[numeric_cols].abs().sum(axis=1) != 0)]
@@ -125,7 +137,13 @@ class StreamingIForestDetector:
             )
 
         if self.feature_cols is None:
-            exclude = {"snapshot_timestamp", "stop_id", "direction_id", "local_dt"}
+            exclude = {
+                "snapshot_timestamp",
+                "stop_id",
+                "direction_id",
+                "local_dt",
+                *self.drop_features,
+            }
             self.feature_cols = [c for c in df.columns if c not in exclude]
 
         rows = []
@@ -166,6 +184,8 @@ class StreamingIForestDetector:
             "n_obs": self.n_obs,
             "current_service_day": self.current_service_day,
             "feature_cols": self.feature_cols,
+            "station_ids": list(self.station_ids) if self.station_ids else None,
+            "drop_features": list(self.drop_features),
         }
         with open(path, "wb") as f:
             pickle.dump(state, f)
@@ -175,7 +195,11 @@ class StreamingIForestDetector:
         """Load a persisted detector from ``path``."""
         with open(path, "rb") as f:
             state = pickle.load(f)
-        obj = cls(state["config"])
+        obj = cls(
+            state["config"],
+            station_ids=state.get("station_ids"),
+            drop_features=state.get("drop_features"),
+        )
         obj.pipeline = state["pipeline"]
         obj.scores = deque(state["scores"], maxlen=obj.config.window_size)
         obj.n_obs = state["n_obs"]
