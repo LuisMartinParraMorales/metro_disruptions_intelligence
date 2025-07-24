@@ -35,3 +35,15 @@ def test_evaluate_scores_runs() -> None:
     events = build_events(alerts)
     metrics = evaluate_scores(scores, events, k=1, lead_time=60)
     assert set(metrics.keys()) == {"lead_time_roc_auc", "precision_at_k", "mttd", "fpr"}
+
+
+def test_evaluate_scores_threshold() -> None:
+    scores = pd.DataFrame({
+        "ts": [0, 60, 120],
+        "anomaly_score": [0.1, 0.5, 0.2],
+        "anomaly_flag": [0, 1, 0],
+        "arrival_delay_t": [0, 130, 0],
+        "departure_delay_t": [0, 0, 0],
+    })
+    metrics = evaluate_scores(scores, None, k=1, delay_threshold=120)
+    assert set(metrics.keys()) == {"lead_time_roc_auc", "precision_at_k", "mttd", "fpr"}
