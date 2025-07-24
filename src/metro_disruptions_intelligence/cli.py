@@ -189,7 +189,10 @@ def detect_anomalies_cmd(
 )
 @click.option("--start", "start_time", required=True, type=str)
 @click.option("--end", "end_time", required=True, type=str)
-def tune_iforest_cmd(processed_root: Path, grid_yaml: Path, start_time: str, end_time: str) -> None:
+@click.option("--delay-threshold", type=int, default=120, show_default=True)
+def tune_iforest_cmd(
+    processed_root: Path, grid_yaml: Path, start_time: str, end_time: str, delay_threshold: int
+) -> None:
     """Grid search hyper-parameters for StreamingIForestDetector."""
     start_dt = _parse_cli_time(start_time)
     end_dt = _parse_cli_time(end_time)
@@ -201,6 +204,7 @@ def tune_iforest_cmd(processed_root: Path, grid_yaml: Path, start_time: str, end
         Path("data/working_data/cache"),
         results_csv=Path("data/working_data/tuning_results.csv"),
         best_yaml=Path("iforest_best.yaml"),
+        delay_threshold=delay_threshold,
     )
     if df.empty:
         click.echo("No feature files found for the specified range", err=True)

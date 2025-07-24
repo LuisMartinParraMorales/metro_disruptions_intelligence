@@ -14,6 +14,7 @@ import pandas as pd
 import pytz
 import yaml
 
+from ..evaluation import evaluate_scores
 from .streaming_iforest import StreamingIForestDetector
 
 logger = logging.getLogger(__name__)
@@ -58,10 +59,11 @@ def _score_range(
     )
 
 
-def _evaluate(df: pd.DataFrame) -> tuple[float, float]:
+def _evaluate(df: pd.DataFrame, delay_threshold: int | None = None) -> dict:
+    """Return evaluation metrics for ``df`` using ``delay_threshold`` labels."""
     if df.empty:
-        return 0.0, 0.0
-    return float(df["anomaly_score"].mean()), float(df["anomaly_flag"].mean())
+        return {"lead_time_roc_auc": 0.0, "precision_at_k": 0.0, "mttd": float("nan"), "fpr": 0.0}
+    return evaluate_scores(df, events=None, delay_threshold=delay_threshold)
 
 
 def run_grid_search(
@@ -73,8 +75,22 @@ def run_grid_search(
     *,
     results_csv: Path | None = None,
     best_yaml: Path | None = None,
+    delay_threshold: int | None = None,
 ) -> pd.DataFrame:
-    """Run a serial grid search over StreamingIForestDetector parameters."""
+    """Run a serial grid search over ``StreamingIForestDetector`` parameters.
+
+    Parameters
+    ----------
+    processed_root:
+        Root directory containing station feature snapshots.
+    grid_yaml:
+        Path to a YAML file describing the hyper-parameter grid.
+    start, end:
+        Time window to score for each parameter set.
+    delay_threshold:
+        If provided, compute evaluation metrics using this delay threshold
+        as ground truth instead of alerts.
+    """
     cache_dir = Path(cache_dir or _DEF_CACHE)
     results_csv = Path(results_csv or _DEF_RESULTS)
     best_yaml = Path(best_yaml or _DEF_BEST)
@@ -100,8 +116,8 @@ def run_grid_search(
                 scores.to_parquet(cache_file, index=False)
         if scores.empty:
             continue
-        auc, prec = _evaluate(scores)
-        rows.append({**params, "lead_time_roc_auc": auc, "precision_at_k": prec})
+        metrics = _evaluate(scores, delay_threshold)
+        rows.append({**params, **metrics})
 
     df = pd.DataFrame(rows)
     results_csv.parent.mkdir(parents=True, exist_ok=True)
