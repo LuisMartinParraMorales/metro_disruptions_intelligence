@@ -11,10 +11,10 @@ from pathlib import Path
 
 import numpy as np
 import pandas as pd
-import pytz
 import yaml
 
 from ..evaluation import evaluate_scores
+from ..processed_reader import snapshot_path
 from .streaming_iforest import StreamingIForestDetector
 
 logger = logging.getLogger(__name__)
@@ -26,14 +26,7 @@ _DEF_BEST = Path("iforest_best.yaml")
 
 
 def _snapshot_path(root: Path, ts: int) -> Path:
-    dt = datetime.fromtimestamp(ts, tz=pytz.UTC)
-    return (
-        root
-        / f"year={dt.year:04d}"
-        / f"month={dt.month:02d}"
-        / f"day={dt.day:02d}"
-        / f"stations_feats_{dt:%Y-%d-%m-%H-%M}.parquet"
-    )
+    return snapshot_path(ts, root)
 
 
 def _score_range(

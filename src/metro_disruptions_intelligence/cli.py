@@ -13,7 +13,7 @@ from .detect.tune_iforest import run_grid_search
 from .etl.ingest_rt import _parse_cli_time, ingest_all_rt, union_all_feeds
 from .etl.static_ingest import ingest_static_gtfs
 from .features import SnapshotFeatureBuilder, build_route_map, write_features
-from .processed_reader import compose_path, discover_all_snapshot_minutes
+from .processed_reader import compose_path, discover_all_snapshot_minutes, snapshot_path
 
 logger = logging.getLogger(__name__)
 
@@ -117,11 +117,7 @@ def generate_features_cmd(
         feats = feats.reset_index()
         feats["snapshot_timestamp"] = ts
 
-        dt = datetime.fromtimestamp(ts, tz=pytz.UTC)
-        out_dir = (
-            output_root / f"year={dt.year:04d}" / f"month={dt.month:02d}" / f"day={dt.day:02d}"
-        )
-        out_file = out_dir / f"stations_feats_{dt:%Y-%d-%m-%H-%M}.parquet"
+        out_file = snapshot_path(ts, output_root)
         write_features(feats, out_file)
 
 
@@ -152,14 +148,7 @@ def detect_anomalies_cmd(
     start_ts = int(start_dt.timestamp())
     end_ts = int(end_dt.timestamp())
     for ts in range(start_ts, end_ts, 60):
-        dt = datetime.fromtimestamp(ts, tz=pytz.UTC)
-        in_file = (
-            processed_root
-            / f"year={dt.year:04d}"
-            / f"month={dt.month:02d}"
-            / f"day={dt.day:02d}"
-            / f"stations_feats_{dt:%Y-%d-%m-%H-%M}.parquet"
-        )
+        in_file = snapshot_path(ts, processed_root)
         if not in_file.exists():
             continue
         df = pd.read_parquet(in_file)
@@ -170,6 +159,7 @@ def detect_anomalies_cmd(
         total += 1
         anomalies += int(out["anomaly_flag"].sum())
         mean_accum += float(out["anomaly_score"].mean())
+        dt = datetime.fromtimestamp(ts, tz=pytz.UTC)
         out_dir = out_root / f"year={dt.year:04d}" / f"month={dt.month:02d}" / f"day={dt.day:02d}"
         out_dir.mkdir(parents=True, exist_ok=True)
         out_file = out_dir / f"anomaly_scores_{dt:%Y-%d-%m-%H-%M}.parquet"
