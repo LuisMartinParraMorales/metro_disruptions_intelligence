@@ -1,0 +1,5 @@
+height: 8.0
+n_trees: 50.0
+subsample_size: 128.0
+threshold_quantile: 0.97
+window_size: 5000.0
