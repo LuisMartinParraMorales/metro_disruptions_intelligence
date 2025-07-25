@@ -106,6 +106,7 @@ def test_tune_iforest_runs(tmp_path: Path, monkeypatch) -> None:
             dt = datetime.fromtimestamp(ts, tz=pytz.UTC)
             out_dir = (
                 processed_root
+                / "stations_feats"
                 / f"year={dt.year:04d}"
                 / f"month={dt.month:02d}"
                 / f"day={dt.day:02d}"

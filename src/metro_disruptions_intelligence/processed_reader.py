@@ -1,4 +1,8 @@
-"""Utilities for loading processed GTFS-realtime Parquet files."""
+"""Utilities for loading processed Parquet datasets.
+
+Realtime feed filenames are stamped in London local time (GMT/BST) but
+station feature snapshot filenames are always stamped in UTC.
+"""
 
 from __future__ import annotations
 
@@ -6,7 +10,6 @@ import logging
 from datetime import datetime
 from pathlib import Path
 from typing import Iterable
-from typing import Optional
 
 import pandas as pd
 import pytz
@@ -107,3 +110,16 @@ def compose_path(ts: int, root: Path, feed: str) -> Path:
 
     base = root / feed / f"year={dt.year:04d}" / f"month={dt.month:02d}" / f"day={dt.day:02d}"
     return base / _fname(dt, feed)
+
+
+def snapshot_path(ts: int, root: Path) -> Path:
+    """Return path for station feature snapshot at ``ts`` in UTC."""
+    dt = datetime.fromtimestamp(ts, tz=pytz.UTC)
+    return (
+        root
+        / "stations_feats"
+        / f"year={dt.year:04d}"
+        / f"month={dt.month:02d}"
+        / f"day={dt.day:02d}"
+        / f"stations_feats_{dt:%Y-%d-%m-%H-%M}.parquet"
+    )
